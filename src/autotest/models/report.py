@@ -20,11 +20,24 @@ def _generate_report_id() -> str:
     return f"AT-{date_part}-{unique_part}"
 
 
+class FailedTestDetail(BaseModel):
+    """Detailed information about a failed test."""
+
+    test_name: str
+    category: str  # import, mock, assertion, syntax, etc.
+    summary: str  # Short error description
+    file_path: str | None = None
+    line_number: int | None = None
+    recommendation: str  # Actionable fix suggestion
+    code_snippet: str | None = None
+
+
 class QualitySummary(BaseModel):
     overall_score: float = Field(ge=0.0, le=100.0, default=0.0)
     test_health: str = "unknown"
     risk_areas: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
+    failed_tests: list[FailedTestDetail] = Field(default_factory=list)
 
 
 class ReportData(BaseModel):

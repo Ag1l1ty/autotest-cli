@@ -294,27 +294,60 @@
         </div>
         {% endif %}
 
+        <!-- Failed Tests Details -->
+        {% if quality.failed_tests %}
+        <div class="section">
+            <h2>Detalle de Tests Fallidos</h2>
+            {% for test in quality.failed_tests %}
+            <details style="margin-bottom: 12px;" {% if loop.index <= 5 %}open{% endif %}>
+                <summary style="border-left: 3px solid var(--red);">
+                    <span class="badge badge-fail">{{ test.category | upper }}</span>
+                    <strong>{{ test.test_name }}</strong>
+                    {% if test.file_path %}
+                    <span style="color: var(--text-muted); font-size: 12px;">
+                        — {{ test.file_path }}{% if test.line_number %}:{{ test.line_number }}{% endif %}
+                    </span>
+                    {% endif %}
+                </summary>
+                <div style="padding: 12px; background: var(--bg-card); margin-top: 4px; border-radius: 4px;">
+                    <div style="margin-bottom: 8px;">
+                        <strong style="color: var(--text-muted);">Error:</strong>
+                        <span>{{ test.summary }}</span>
+                    </div>
+                    {% if test.code_snippet %}
+                    <pre style="font-size: 12px; margin-bottom: 8px;">{{ test.code_snippet }}</pre>
+                    {% endif %}
+                    <div style="border-left: 3px solid var(--blue); padding-left: 12px; background: rgba(88, 166, 255, 0.05); padding: 8px 12px; border-radius: 0 4px 4px 0;">
+                        <strong style="color: var(--blue);">💡 Recomendación:</strong>
+                        <span>{{ test.recommendation }}</span>
+                    </div>
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- Risk Areas & Recommendations -->
         {% if quality.risk_areas or quality.recommendations %}
         <div class="section">
-            <h2>Findings & Recommendations</h2>
+            <h2>Resumen y Acciones</h2>
             <div class="grid" style="grid-template-columns: 1fr 1fr;">
                 <div>
-                    <h3 style="color: var(--red); margin-bottom: 12px;">Risk Areas</h3>
+                    <h3 style="color: var(--red); margin-bottom: 12px;">Áreas de Riesgo</h3>
                     {% for risk in quality.risk_areas %}
                     <div class="risk-item">{{ risk }}</div>
                     {% endfor %}
                     {% if not quality.risk_areas %}
-                    <div style="color: var(--green);">No risk areas identified.</div>
+                    <div style="color: var(--green);">Sin áreas de riesgo identificadas.</div>
                     {% endif %}
                 </div>
                 <div>
-                    <h3 style="color: var(--blue); margin-bottom: 12px;">Recommendations</h3>
+                    <h3 style="color: var(--blue); margin-bottom: 12px;">Plan de Acción</h3>
                     {% for rec in quality.recommendations %}
-                    <div class="rec-item">{{ rec }}</div>
+                    <div class="rec-item">{{ rec | safe }}</div>
                     {% endfor %}
                     {% if not quality.recommendations %}
-                    <div style="color: var(--green);">No recommendations at this time.</div>
+                    <div style="color: var(--green);">Sin recomendaciones pendientes.</div>
                     {% endif %}
                 </div>
             </div>

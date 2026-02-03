@@ -182,14 +182,57 @@ class TerminalReporter(BaseReporter):
             )
         )
 
+        # Print detailed failed tests info
+        if quality.failed_tests:
+            self.console.print()
+            table = Table(
+                title="[bold red]Tests Fallidos - Detalle[/]",
+                border_style="red",
+                show_lines=True,
+            )
+            table.add_column("Test", style="bold", max_width=30)
+            table.add_column("Categoría", justify="center", max_width=12)
+            table.add_column("Recomendación", max_width=60)
+
+            for test in quality.failed_tests[:10]:  # Show top 10
+                category_colors = {
+                    "import": "yellow",
+                    "mock": "magenta",
+                    "assertion": "red",
+                    "syntax": "red",
+                    "type": "cyan",
+                    "attribute": "cyan",
+                    "network": "blue",
+                    "environment": "yellow",
+                }
+                cat_color = category_colors.get(test.category, "white")
+
+                table.add_row(
+                    test.test_name.split(":")[-1],  # Short name
+                    f"[{cat_color}]{test.category.upper()}[/]",
+                    test.recommendation[:100],
+                )
+
+            self.console.print(table)
+
+            if len(quality.failed_tests) > 10:
+                self.console.print(
+                    f"[dim]... y {len(quality.failed_tests) - 10} tests más. "
+                    "Ver reporte HTML para detalles completos.[/]"
+                )
+
         if quality.risk_areas:
-            tree = Tree("[bold red]Risk Areas[/]")
+            self.console.print()
+            tree = Tree("[bold red]Áreas de Riesgo[/]")
             for risk in quality.risk_areas:
-                tree.add(f"[red]! {risk}[/]")
+                tree.add(f"[red]⚠ {risk}[/]")
             self.console.print(tree)
 
         if quality.recommendations:
-            tree = Tree("[bold blue]Recommendations[/]")
-            for rec in quality.recommendations:
-                tree.add(f"[blue]> {rec}[/]")
+            self.console.print()
+            tree = Tree("[bold blue]Plan de Acción[/]")
+            for rec in quality.recommendations[:15]:  # Limit to avoid spam
+                # Handle markdown bold
+                rec_formatted = rec.replace("**", "[bold]").replace("**", "[/bold]")
+                tree.add(f"[blue]→ {rec_formatted}[/]")
             self.console.print(tree)
