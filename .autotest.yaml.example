@@ -1,0 +1,40 @@
+# AutoTest CLI Configuration
+# Copy this file to .autotest.yaml in your project root
+
+# Phases to run (in order)
+phases:
+  - smoke
+  - unit
+  - integration
+  - security
+  - quality
+
+# Output formats
+output_formats:
+  - terminal
+  - json
+  - html
+
+# Output directory for reports
+output_dir: ./reports
+
+# AI-powered test generation
+ai_enabled: true
+# ai_api_key: "sk-..."  # Or set AUTOTEST_AI_API_KEY env var
+ai_model: "claude-sonnet-4-20250514"
+ai_max_functions: 20
+ai_max_cost_usd: 5.0
+
+# Analysis thresholds
+complexity_threshold: 10
+coupling_threshold: 8
+
+# Execution settings
+timeout_seconds: 300
+parallel: true
+fail_fast: false
+sandbox_enabled: true
+
+# Logging
+verbose: false
+debug: false

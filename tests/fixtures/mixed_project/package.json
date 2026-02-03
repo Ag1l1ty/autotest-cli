@@ -1,0 +1,12 @@
+{
+  "name": "sample-mixed-project",
+  "version": "1.0.0",
+  "description": "A mixed Python/JS project used as a test fixture.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

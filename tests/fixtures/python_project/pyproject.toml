@@ -1,0 +1,9 @@
+[project]
+name = "sample-python-project"
+version = "0.1.0"
+description = "A sample Python project used as a test fixture."
+requires-python = ">=3.9"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

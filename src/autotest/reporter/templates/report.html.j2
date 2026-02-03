@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoTest Report - {{ project.name }}</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-card: #21262d;
+            --text: #c9d1d9;
+            --text-muted: #8b949e;
+            --border: #30363d;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --blue: #58a6ff;
+            --purple: #bc8cff;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 24px 0;
+            margin-bottom: 24px;
+        }
+        header h1 { font-size: 24px; font-weight: 600; }
+        header .meta { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+        .score-badge {
+            display: inline-block;
+            font-size: 48px;
+            font-weight: 700;
+            padding: 16px 24px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .score-healthy { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+        .score-moderate { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+        .score-at-risk { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+        .score-critical { background: rgba(248, 81, 73, 0.25); color: var(--red); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .card h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .card .value { font-size: 28px; font-weight: 600; }
+        .section { margin-bottom: 32px; }
+        .section h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 500; font-size: 13px; text-transform: uppercase; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-pass { background: rgba(63, 185, 80, 0.2); color: var(--green); }
+        .badge-fail { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+        .badge-lang { background: rgba(88, 166, 255, 0.2); color: var(--blue); }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .progress-green { background: var(--green); }
+        .progress-yellow { background: var(--yellow); }
+        .progress-red { background: var(--red); }
+        .risk-item {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--red);
+            background: rgba(248, 81, 73, 0.05);
+            border-radius: 0 4px 4px 0;
+        }
+        .rec-item {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--blue);
+            background: rgba(88, 166, 255, 0.05);
+            border-radius: 0 4px 4px 0;
+        }
+        footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            padding: 24px 0;
+            border-top: 1px solid var(--border);
+            margin-top: 48px;
+        }
+        details { margin-bottom: 8px; }
+        details summary {
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+        }
+        details summary:hover { background: var(--bg-card); }
+        pre {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>AutoTest Report: {{ project.name }}</h1>
+            <div class="meta">
+                <span style="font-family: monospace; background: var(--bg-card); padding: 2px 8px; border-radius: 4px;">{{ report_id }}</span>
+                &nbsp;|&nbsp; Generated {{ generated_at }} &nbsp;|&nbsp; AutoTest v{{ version }}
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Quality Score -->
+        <div class="section" style="text-align: center; margin-bottom: 32px;">
+            <div class="score-badge score-{{ quality.test_health }}">
+                {{ quality.overall_score }}/100
+            </div>
+            <div style="margin-top: 8px; color: var(--text-muted);">
+                Quality Score: <strong>{{ quality.test_health | upper }}</strong>
+            </div>
+        </div>
+
+        <!-- Overview Cards -->
+        <div class="grid">
+            <div class="card">
+                <h3>Languages</h3>
+                <div class="value">{{ project.languages | length }}</div>
+                <div style="margin-top: 8px;">
+                    {% for lang in project.languages %}
+                    <span class="badge badge-lang">{{ lang.language.value }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card">
+                <h3>Total Functions</h3>
+                <div class="value">{{ analysis.total_functions }}</div>
+                <div style="color: var(--text-muted); margin-top: 4px;">
+                    {{ analysis.untested_functions | length }} untested
+                </div>
+            </div>
+            <div class="card">
+                <h3>Pass Rate</h3>
+                <div class="value" style="color: {% if execution.overall_pass_rate >= 0.8 %}var(--green){% elif execution.overall_pass_rate >= 0.5 %}var(--yellow){% else %}var(--red){% endif %};">
+                    {{ (execution.overall_pass_rate * 100) | round(1) }}%
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill {% if execution.overall_pass_rate >= 0.8 %}progress-green{% elif execution.overall_pass_rate >= 0.5 %}progress-yellow{% else %}progress-red{% endif %}"
+                         style="width: {{ (execution.overall_pass_rate * 100) | round }}%;"></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Coverage</h3>
+                <div class="value">
+                    {% if execution.overall_coverage is not none %}
+                    {{ execution.overall_coverage | round(1) }}%
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis -->
+        <div class="section">
+            <h2>Code Analysis</h2>
+            <div class="card">
+                <table>
+                    <tr>
+                        <td>Average Complexity</td>
+                        <td><strong>{{ analysis.avg_complexity | round(1) }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Total Lines of Code</td>
+                        <td><strong>{{ analysis.total_loc }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Dead Code Functions</td>
+                        <td><strong>{{ analysis.dead_code_functions | length }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>High Coupling Modules</td>
+                        <td><strong>{{ analysis.coupling_issues | length }}</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Phase Results -->
+        <div class="section">
+            <h2>Test Phases</h2>
+            {% for phase in execution.phases %}
+            <details {% if phase.failed > 0 %}open{% endif %}>
+                <summary>
+                    <span class="badge {% if phase.failed == 0 %}badge-pass{% else %}badge-fail{% endif %}">
+                        {% if phase.failed == 0 %}PASS{% else %}FAIL{% endif %}
+                    </span>
+                    <strong>{{ phase.phase.value | upper }}</strong>
+                    &mdash;
+                    {{ phase.passed }}/{{ phase.total_tests }} passed
+                    ({{ (phase.success_rate * 100) | round(1) }}%)
+                    &mdash;
+                    {{ phase.duration.total_seconds() | round(1) }}s
+                </summary>
+                <div style="padding: 12px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Test</th>
+                                <th>Status</th>
+                                <th>Duration</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for test in phase.test_results %}
+                            <tr>
+                                <td>{{ test.name }}</td>
+                                <td>
+                                    <span class="badge {% if test.passed %}badge-pass{% else %}badge-fail{% endif %}">
+                                        {% if test.passed %}PASS{% else %}FAIL{% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ test.duration_ms | round(0) }}ms</td>
+                                <td>
+                                    {% if test.error_message %}
+                                    <pre>{{ test.error_message[:500] }}</pre>
+                                    {% else %}
+                                    &mdash;
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+
+        <!-- AI Generation Stats -->
+        {% if strategy.ai_generation_used %}
+        <div class="section">
+            <h2>AI Test Generation</h2>
+            <div class="card">
+                <table>
+                    <tr>
+                        <td>Tests Attempted</td>
+                        <td><strong>{{ strategy.generation_stats.get('attempted', 0) }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Tests Valid</td>
+                        <td><strong style="color: var(--green);">{{ strategy.generation_stats.get('valid', 0) }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Tests Failed</td>
+                        <td><strong style="color: var(--red);">{{ strategy.generation_stats.get('failed', 0) }}</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Risk Areas & Recommendations -->
+        {% if quality.risk_areas or quality.recommendations %}
+        <div class="section">
+            <h2>Findings & Recommendations</h2>
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <div>
+                    <h3 style="color: var(--red); margin-bottom: 12px;">Risk Areas</h3>
+                    {% for risk in quality.risk_areas %}
+                    <div class="risk-item">{{ risk }}</div>
+                    {% endfor %}
+                    {% if not quality.risk_areas %}
+                    <div style="color: var(--green);">No risk areas identified.</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <h3 style="color: var(--blue); margin-bottom: 12px;">Recommendations</h3>
+                    {% for rec in quality.recommendations %}
+                    <div class="rec-item">{{ rec }}</div>
+                    {% endfor %}
+                    {% if not quality.recommendations %}
+                    <div style="color: var(--green);">No recommendations at this time.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <footer>
+        <div class="container">
+            Generated by AutoTest CLI v{{ version }} &nbsp;|&nbsp; Report ID: <code>{{ report_id }}</code>
+        </div>
+    </footer>
+</body>
+</html>

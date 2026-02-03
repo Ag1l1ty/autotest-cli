@@ -1,0 +1,62 @@
+[project]
+name = "autotest-cli"
+version = "0.1.0"
+description = "Analizador automatico de proyectos de software - detecta tecnologias, analiza codigo y ejecuta pruebas"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Agility Changes"},
+]
+
+dependencies = [
+    "typer>=0.15.0,<1.0",
+    "rich>=13.9.0,<15.0",
+    "pydantic>=2.10.0,<3.0",
+    "pydantic-settings>=2.6.0,<3.0",
+    "radon>=6.0.1,<7.0",
+    "anthropic>=0.40.0,<1.0",
+    "pyyaml>=6.0.2,<7.0",
+    "jinja2>=3.1.4,<4.0",
+    "anyio>=4.7.0,<5.0",
+]
+
+[project.optional-dependencies]
+security = [
+    "bandit>=1.8.0,<2.0",
+    "safety>=3.2.0,<4.0",
+]
+dev = [
+    "pytest>=8.3.0,<9.0",
+    "pytest-asyncio>=0.24.0,<1.0",
+    "pytest-cov>=6.0.0,<7.0",
+    "pytest-mock>=3.14.0,<4.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[project.scripts]
+autotest = "autotest.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autotest"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.autotest]
+phases = ["smoke", "unit", "quality"]
+output_formats = ["terminal"]
