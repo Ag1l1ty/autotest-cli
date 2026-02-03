@@ -303,6 +303,101 @@ output_formats = ["terminal", "html"]
 
 ---
 
+## Diagnóstico Actual (2026-02-03)
+
+### Estado: PROTOTIPO TÉCNICO - NO LISTO PARA PRODUCCIÓN
+
+La app funciona técnicamente pero **no resuelve el problema real del desarrollador**.
+
+### Problemas Identificados
+
+| Problema | Impacto | Ejemplo |
+|----------|---------|---------|
+| **Tests IA con errores** | Alto | Genera `TranscriptionProcessor` cuando la clase es `TranscriptProcessor` |
+| **Errores "UNKNOWN"** | Alto | 12/18 tests muestran "revisar logs" - no es útil |
+| **No encuentra bugs reales** | Crítico | Tests fallan por errores de la IA, no por bugs del código |
+| **Linting opaco** | Medio | Solo dice "ruff failed", no qué reglas ni dónde |
+| **Mucho ruido** | Alto | 18 errores sin prioridad, difícil saber qué importa |
+
+### Lo que el desarrollador necesita vs lo que la app da
+
+```
+NECESITA: "Tu función X tiene un bug en línea 45"
+DA:       "18 tests fallaron"
+
+NECESITA: "Este import está mal, cámbialo por Y"
+DA:       "Error de importación, revisa logs"
+
+NECESITA: "Copia este código para arreglar"
+DA:       "Recomendación genérica"
+```
+
+---
+
+## Recomendaciones de Mejora (PENDIENTES)
+
+### 1. Validar antes de generar
+Antes de que la IA genere un test que importa `TranscriptProcessor`:
+- Verificar que la clase/función existe en el código
+- Verificar el nombre exacto (case-sensitive)
+- Si no existe, NO generar el test
+
+### 2. Menos tests, mejor calidad
+- Limitar a 5-10 tests de alta calidad
+- Priorizar funciones críticas (alta complejidad, sin tests)
+- Validar que el test compila antes de incluirlo
+
+### 3. Salida accionable
+Cambiar de:
+```
+❌ quality:python:ruff - FAIL
+   Recomendación: Revisar logs
+```
+
+A:
+```
+❌ airtable_integration.py:80
+   E501: Línea muy larga (120 > 100 chars)
+
+💡 Arreglo sugerido:
+   response = create_card(
+       base_id=BASE_ID,
+       data=payload
+   )
+```
+
+### 4. Enfocarse en UNA cosa bien
+Opciones:
+- **Opción A**: Solo análisis de calidad (complejidad, linting, tipos) - hacerlo excelente
+- **Opción B**: Solo generación de tests - hacerlo excelente
+- **Opción C**: Solo detección de bugs - hacerlo excelente
+
+NO seguir haciendo 5 cosas a medias.
+
+### 5. Priorización clara
+En lugar de 18 errores planos, mostrar:
+```
+🔴 CRÍTICO (arreglar antes de deploy):
+   1. SQL Injection en user_input.py:45
+
+🟡 IMPORTANTE (arreglar pronto):
+   2. Función sin manejo de errores: process_file()
+
+🟢 MENOR (cuando tengas tiempo):
+   3. Línea muy larga en utils.py:80
+```
+
+---
+
+## Próximos Pasos (Sesión Siguiente)
+
+1. **Decisión**: ¿Pivotar a enfoque específico o seguir como demo técnico?
+2. **Si pivotea**: Elegir UNA de las opciones (A, B, o C)
+3. **Implementar**: Validación de imports antes de generar tests
+4. **Mejorar**: Parser de errores de ruff/mypy para mostrar detalles reales
+
+---
+
 ## Notas para Claude
 
 Cuando trabajes en este proyecto:
@@ -314,3 +409,4 @@ Cuando trabajes en este proyecto:
 5. **Tests generados** - Se guardan en el proyecto, no solo en sandbox
 6. **API key** - Busca ANTHROPIC_API_KEY o AUTOTEST_AI_API_KEY
 7. **Reportes** - Siempre en `{proyecto}/reports/` con ID unico
+8. **IMPORTANTE**: La app está en estado de prototipo. No funciona bien para uso real. Ver sección "Diagnóstico Actual" arriba.
