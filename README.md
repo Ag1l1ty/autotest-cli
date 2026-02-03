@@ -16,7 +16,7 @@ Analizador automatico de proyectos de software. Detecta tecnologias, analiza cod
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/tu-usuario/autotest-cli.git
+git clone https://github.com/Ag1l1ty/autotest-cli.git
 cd autotest-cli
 
 # Instalar
@@ -26,14 +26,14 @@ pip install -e .
 ### Instalacion directa desde GitHub
 
 ```bash
-pip install git+https://github.com/tu-usuario/autotest-cli.git
+pip install git+https://github.com/Ag1l1ty/autotest-cli.git
 ```
 
 ### Desarrollo local
 
 ```bash
 # Clonar y entrar al directorio
-git clone https://github.com/tu-usuario/autotest-cli.git
+git clone https://github.com/Ag1l1ty/autotest-cli.git
 cd autotest-cli
 
 # Crear entorno virtual (recomendado)
