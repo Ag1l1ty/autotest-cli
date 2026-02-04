@@ -308,13 +308,56 @@ Correr tests: `python3 -m pytest tests/ -v`
 - Reporte HTML con dark theme, urgency gradient, highlights, anchors
 - 83 tests unitarios pasando
 
-### Pendiente (futuro)
-- **AI review** (`--no-ai` actualmente activo por default en desarrollo) — requiere ANTHROPIC_API_KEY
-- **`--fix`** — auto_fixer.py existe pero necesita findings con `code_after` generados por AI
-- **Mas heuristicas de coverage_gap** — actualmente busca nombre de funcion en test content
-- **Soporte para monorepos** — multiples proyectos en un directorio
-- **CI/CD integration** — GitHub Actions, GitLab CI templates
-- **Cache de resultados** — evitar re-analisis de archivos no modificados
+### Roadmap de Evoluciones
+
+#### v0.3.0 — AI Review (prioridad alta)
+El codigo ya existe en `diagnosis/ai_reviewer.py`, `context_builder.py` y `prompts.py`. Falta validar y pulir.
+
+- **Activar AI reviewer** — Quitar `--no-ai` como default. Requiere `ANTHROPIC_API_KEY` en env.
+- **Validar tool_use schema** — `prompts.py` define el schema de tools para Claude. Verificar que las respuestas de Claude se parsean correctamente en findings.
+- **Priorizar funciones para AI** — `prioritize_functions()` en `ai_reviewer.py` selecciona las funciones mas complejas/riesgosas. Ajustar heuristica.
+- **Context builder** — `context_builder.py` construye contexto rico (imports, dependencias, funciones relacionadas) para que Claude tenga contexto suficiente. Validar que no excede limites de tokens.
+- **Findings AI con code_after** — Los findings AI deben incluir `code_after` (fix concreto) para que el boton "Copiar fix" funcione en HTML.
+- **Deduplicacion AI vs static** — Ya existe en `DiagnosisEngine._deduplicate()`. Validar que no se pierden findings valiosos de AI cuando hay overlap con static.
+- **Confidence threshold** — `min_finding_confidence: 0.6` filtra findings AI con baja confianza. Ajustar umbral segun resultados reales.
+- **Rate limiting / error handling** — Manejar errores de API (429, 500, timeout) sin perder findings estaticos.
+- **Tests** — Agregar tests unitarios para ai_reviewer con mocks de la API de Anthropic.
+
+#### v0.3.1 — Auto-Fix (`--fix`)
+El codigo ya existe en `diagnosis/auto_fixer.py`.
+
+- **Aplicar fixes automaticamente** — `auto_fixer.py` reemplaza `code_before` por `code_after` en archivos fuente. Validar que funciona correctamente.
+- **`--dry-run`** — Mostrar que cambios se harian sin aplicarlos. Ya parseado en CLI.
+- **Backup antes de fix** — Crear copia del archivo antes de modificarlo.
+- **Validacion post-fix** — Correr tests despues de aplicar fixes para verificar que no rompen nada.
+- **Reporte de fixes aplicados** — Mostrar cuantos fixes se aplicaron y cuales fallaron.
+- **Solo fixes con code_after** — Ignorar findings sin `code_after` (findings de complejidad no tienen fix automatico).
+
+#### v0.4.0 — Mejoras de Analisis Estatico
+- **Coverage gap mejorado** — Actualmente usa 3 heuristicas (patterns, cross-line regex, function call). Agregar: analisis de imports en test files, deteccion de fixtures que wrappean funciones.
+- **Analisis de dependencias circulares** — Detectar ciclos en el grafo de imports.
+- **Deteccion de funciones duplicadas** — Funciones con cuerpo similar en diferentes archivos.
+- **Metricas de mantenibilidad** — Halstead metrics, maintainability index (radon ya las soporta).
+- **Type coverage** — Para Python con mypy, detectar funciones sin type hints.
+- **Soporte para configuracion por directorio** — `.autotest.yaml` por subdirectorio para monorepos.
+
+#### v0.5.0 — CI/CD Integration
+- **GitHub Actions template** — Workflow listo para copiar que corre `autotest diagnose` en PRs.
+- **GitLab CI template** — Equivalente para GitLab.
+- **PR comments** — Publicar findings como comentarios en PRs usando `gh api`.
+- **JSON output para CI** — El JSON reporter ya existe. Agregar exit codes configurables por severidad.
+- **Badge de health score** — Generar SVG badge con el health score para README.
+- **Comparacion entre runs** — Comparar findings entre la branch actual y main (delta report).
+- **SARIF output** — Formato estandar para integracion con GitHub Code Scanning.
+
+#### v0.6.0 — UX y Rendimiento
+- **Cache de resultados** — Guardar hash de archivos y reusar analisis si no cambiaron.
+- **Analisis incremental** — Solo analizar archivos modificados desde el ultimo run.
+- **Watch mode** — `autotest watch ./proyecto` para re-analizar en cada cambio.
+- **Soporte para monorepos** — Detectar multiples proyectos en un directorio y analizarlos por separado.
+- **Reporte interactivo en terminal** — Navegacion con flechas entre findings (TUI con textual).
+- **Light theme** — Opcion de tema claro en HTML para impresion/documentacion.
+- **Internacionalizacion** — Textos del reporte en ingles/español configurable (actualmente mezclado).
 
 ---
 
