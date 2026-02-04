@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoTest Report - {{ project.name }}</title>
+    <title>Code Doctor - {{ project.name }}</title>
     <style>
         :root {
             --bg: #0d1117;
@@ -13,8 +13,10 @@
             --text-muted: #8b949e;
             --border: #30363d;
             --green: #3fb950;
+            --green-dim: rgba(63, 185, 80, 0.15);
             --red: #f85149;
             --yellow: #d29922;
+            --orange: #db6d28;
             --blue: #58a6ff;
             --purple: #bc8cff;
         }
@@ -46,7 +48,7 @@
         .score-moderate { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
         .score-at-risk { background: rgba(248, 81, 73, 0.15); color: var(--red); }
         .score-critical { background: rgba(248, 81, 73, 0.25); color: var(--red); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -73,38 +75,117 @@
             font-size: 12px;
             font-weight: 500;
         }
-        .badge-pass { background: rgba(63, 185, 80, 0.2); color: var(--green); }
-        .badge-fail { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+        .badge-critical { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+        .badge-warning { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
+        .badge-info { background: rgba(88, 166, 255, 0.2); color: var(--blue); }
         .badge-lang { background: rgba(88, 166, 255, 0.2); color: var(--blue); }
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: var(--border);
+        .badge-category { background: rgba(188, 140, 255, 0.2); color: var(--purple); font-size: 11px; }
+        details { margin-bottom: 8px; }
+        details summary {
+            cursor: pointer;
+            padding: 10px 12px;
             border-radius: 4px;
-            overflow: hidden;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        details summary:hover { background: var(--bg-card); }
+        .finding-body {
+            padding: 16px;
+            background: var(--bg-card);
+            border-radius: 0 0 4px 4px;
+            margin-top: 2px;
+        }
+        pre {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
             margin-top: 8px;
         }
-        .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-        .progress-green { background: var(--green); }
-        .progress-yellow { background: var(--yellow); }
-        .progress-red { background: var(--red); }
-        .risk-item {
-            padding: 8px 12px;
-            margin-bottom: 8px;
-            border-left: 3px solid var(--red);
-            background: rgba(248, 81, 73, 0.05);
+        .fix-box {
+            border-left: 3px solid var(--green);
+            padding: 12px 16px;
+            background: rgba(63, 185, 80, 0.05);
             border-radius: 0 4px 4px 0;
+            margin-top: 12px;
         }
-        .rec-item {
-            padding: 8px 12px;
+        .fix-box h4 { color: var(--green); margin-bottom: 8px; font-size: 14px; }
+        .code-diff { margin-top: 8px; }
+        .code-before { border-left: 3px solid var(--red); padding-left: 8px; margin-bottom: 4px; }
+        .code-after { border-left: 3px solid var(--green); padding-left: 8px; }
+        .action-item {
+            padding: 10px 16px;
             margin-bottom: 8px;
             border-left: 3px solid var(--blue);
             background: rgba(88, 166, 255, 0.05);
             border-radius: 0 4px 4px 0;
+        }
+        .action-item a { color: var(--text); text-decoration: none; }
+        .action-item a:hover { color: var(--blue); }
+        .action-number {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--blue);
+            color: var(--bg);
+            text-align: center;
+            line-height: 24px;
+            font-weight: 600;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+        .copy-btn {
+            display: inline-block;
+            padding: 3px 10px;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: var(--bg-card); color: var(--text); border-color: var(--green); }
+        .copy-btn.copied { color: var(--green); border-color: var(--green); }
+        /* Highlights */
+        .highlights-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+        .highlight-card {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: rgba(63, 185, 80, 0.08);
+            border: 1px solid rgba(63, 185, 80, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--green);
+        }
+        .highlight-icon { font-size: 16px; }
+        /* Urgency gradient for warnings */
+        .urgency-extreme summary { border-left: 3px solid var(--red) !important; background: rgba(248, 81, 73, 0.08); }
+        .urgency-high summary { border-left: 3px solid var(--orange) !important; background: rgba(219, 109, 40, 0.06); }
+        .urgency-moderate summary { border-left: 3px solid var(--yellow); }
+        /* Filter banner */
+        .filter-banner {
+            background: rgba(88, 166, 255, 0.08);
+            border: 1px solid rgba(88, 166, 255, 0.2);
+            border-left: 3px solid var(--blue);
+            border-radius: 0 8px 8px 0;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .filter-banner code {
+            background: var(--bg-card);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
         }
         footer {
             text-align: center;
@@ -114,48 +195,68 @@
             border-top: 1px solid var(--border);
             margin-top: 48px;
         }
-        details { margin-bottom: 8px; }
-        details summary {
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 4px;
-            background: var(--bg-secondary);
-        }
-        details summary:hover { background: var(--bg-card); }
-        pre {
-            background: var(--bg);
-            padding: 12px;
-            border-radius: 4px;
-            overflow-x: auto;
-            font-size: 13px;
-            margin-top: 8px;
+        footer code {
+            background: var(--bg-card);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
         }
     </style>
 </head>
 <body>
     <header>
         <div class="container">
-            <h1>AutoTest Report: {{ project.name }}</h1>
+            <h1>Code Doctor: {{ project.name }}</h1>
             <div class="meta">
                 <span style="font-family: monospace; background: var(--bg-card); padding: 2px 8px; border-radius: 4px;">{{ report_id }}</span>
-                &nbsp;|&nbsp; Generated {{ generated_at }} &nbsp;|&nbsp; AutoTest v{{ version }}
+                &nbsp;|&nbsp; Generated {{ generated_at }} &nbsp;|&nbsp; Code Doctor v{{ version }}
             </div>
         </div>
     </header>
 
     <div class="container">
-        <!-- Quality Score -->
+        {% if diagnosis %}
+        <!-- Health Score -->
         <div class="section" style="text-align: center; margin-bottom: 32px;">
-            <div class="score-badge score-{{ quality.test_health }}">
-                {{ quality.overall_score }}/100
+            <div class="score-badge score-{{ diagnosis.health_label }}">
+                {{ diagnosis.health_score | round(0) | int }}/100
             </div>
             <div style="margin-top: 8px; color: var(--text-muted);">
-                Quality Score: <strong>{{ quality.test_health | upper }}</strong>
+                Health Score: <strong>{{ diagnosis.health_label | upper }}</strong>
             </div>
+            {% if score_breakdown %}
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+                100 {% for label, penalty in score_breakdown %}&minus;{{ penalty | round(1) }} <span style="opacity: 0.7;">({{ label }})</span>{% if not loop.last %} {% endif %}{% endfor %} = {{ diagnosis.health_score | round(0) | int }}
+            </div>
+            {% endif %}
         </div>
 
         <!-- Overview Cards -->
         <div class="grid">
+            <div class="card">
+                <h3>Critical</h3>
+                <div class="value" style="color: var(--red);">{{ diagnosis.critical_count }}</div>
+            </div>
+            <div class="card">
+                <h3>Warnings</h3>
+                <div class="value" style="color: var(--yellow);">{{ diagnosis.warning_count }}</div>
+            </div>
+            <div class="card">
+                <h3>Info</h3>
+                <div class="value" style="color: var(--blue);">{{ diagnosis.info_count }}</div>
+            </div>
+            <div class="card">
+                <h3>Functions</h3>
+                <div class="value">{{ analysis.total_functions }}</div>
+                {% if untested_total > 0 %}
+                <div style="color: var(--text-muted); margin-top: 4px; font-size: 13px;">
+                    {{ untested_total }} untested
+                </div>
+                <div style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">
+                    {% for name in untested_names %}{{ name }}(){% if not loop.last %}, {% endif %}{% endfor %}{% if untested_total > 5 %} y {{ untested_total - 5 }} mas{% endif %}
+                </div>
+                {% endif %}
+            </div>
             <div class="card">
                 <h3>Languages</h3>
                 <div class="value">{{ project.languages | length }}</div>
@@ -165,40 +266,192 @@
                     {% endfor %}
                 </div>
             </div>
-            <div class="card">
-                <h3>Total Functions</h3>
-                <div class="value">{{ analysis.total_functions }}</div>
-                <div style="color: var(--text-muted); margin-top: 4px;">
-                    {{ analysis.untested_functions | length }} untested
-                </div>
-            </div>
-            <div class="card">
-                <h3>Pass Rate</h3>
-                <div class="value" style="color: {% if execution.overall_pass_rate >= 0.8 %}var(--green){% elif execution.overall_pass_rate >= 0.5 %}var(--yellow){% else %}var(--red){% endif %};">
-                    {{ (execution.overall_pass_rate * 100) | round(1) }}%
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill {% if execution.overall_pass_rate >= 0.8 %}progress-green{% elif execution.overall_pass_rate >= 0.5 %}progress-yellow{% else %}progress-red{% endif %}"
-                         style="width: {{ (execution.overall_pass_rate * 100) | round }}%;"></div>
-                </div>
-            </div>
-            <div class="card">
-                <h3>Coverage</h3>
-                <div class="value">
-                    {% if execution.overall_coverage is not none %}
-                    {{ execution.overall_coverage | round(1) }}%
-                    {% else %}
-                    N/A
-                    {% endif %}
-                </div>
-            </div>
         </div>
 
-        <!-- Analysis -->
+        <!-- Highlights (positive metrics) -->
+        {% if highlights %}
+        <div class="highlights-grid">
+            {% for icon, text in highlights %}
+            <div class="highlight-card">
+                <span class="highlight-icon">{% if icon == "check" %}&#10003;{% elif icon == "shield" %}&#9899;{% elif icon == "lock" %}&#128274;{% endif %}</span>
+                {{ text }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Top Actions (executive summary with links) -->
+        {% if top_actions %}
+        <div class="section">
+            <h2>Top Acciones Prioritarias</h2>
+            {% for finding in top_actions %}
+            <div class="action-item">
+                <a href="#finding-{{ finding.id }}">
+                    <span class="action-number">{{ loop.index }}</span>
+                    {% if cc_values.get(finding.id, 0) >= 20 %}
+                    <span style="display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: rgba(248, 81, 73, 0.2); color: var(--red); margin-right: 6px;">ALTO IMPACTO</span>
+                    {% elif cc_values.get(finding.id, 0) >= 10 %}
+                    <span style="display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: rgba(210, 153, 34, 0.2); color: var(--yellow); margin-right: 6px;">MEDIO</span>
+                    {% endif %}
+                    <strong>{{ finding.suggested_fix.description }}</strong>
+                    {% if finding.file_path and finding.line_start %}
+                    <span style="color: var(--text-muted); font-size: 13px;">
+                        &mdash; {{ finding.file_path }}:{{ finding.line_start }}
+                    </span>
+                    {% endif %}
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Findings by Severity -->
+        {% if criticals %}
+        <div class="section">
+            <h2 style="color: var(--red);">Critical ({{ criticals | length }})</h2>
+            {% if critical_summary %}
+            <div style="color: var(--text-muted); font-size: 13px; margin: -8px 0 12px 0;">{{ critical_summary }}</div>
+            {% endif %}
+            {% for finding in criticals %}
+            <details id="finding-{{ finding.id }}" {% if loop.index <= 5 %}open{% endif %}
+                class="{% if cc_values.get(finding.id, 0) >= 25 %}urgency-extreme{% elif cc_values.get(finding.id, 0) >= 15 %}urgency-high{% endif %}">
+                <summary style="{% if cc_values.get(finding.id, 0) < 15 %}border-left: 3px solid var(--red);{% endif %}">
+                    <span class="badge badge-critical">{{ finding.id }}</span>
+                    <span class="badge badge-category">{{ finding.category.value }}</span>
+                    {% if finding.file_path %}
+                    <span style="font-family: monospace; font-size: 13px;">{{ finding.file_path }}{% if finding.line_start %}:{{ finding.line_start }}{% endif %}</span>
+                    {% endif %}
+                    <span style="flex: 1;">{{ finding.title }}</span>
+                </summary>
+                <div class="finding-body">
+                    <p>{{ finding.description }}</p>
+                    {% if finding.suggested_fix %}
+                    <div class="fix-box">
+                        <h4>Fix: {{ finding.suggested_fix.description }}</h4>
+                        {% if finding.suggested_fix.code_before %}
+                        <div class="code-diff">
+                            <div class="code-before"><pre>{{ finding.suggested_fix.code_before }}</pre></div>
+                            {% if finding.suggested_fix.code_after %}
+                            <div class="code-after"><pre>{{ finding.suggested_fix.code_after }}</pre></div>
+                            <button class="copy-btn" onclick="copyFix(this)">Copiar fix</button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if finding.suggested_fix.explanation %}
+                        <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px;">{{ finding.suggested_fix.explanation }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if warnings %}
+        <div class="section">
+            <h2 style="color: var(--yellow);">Warnings ({{ warnings | length }})</h2>
+            {% if warning_summary %}
+            <div style="color: var(--text-muted); font-size: 13px; margin: -8px 0 12px 0;">{{ warning_summary }}</div>
+            {% endif %}
+            {% for finding in warnings %}
+            <details id="finding-{{ finding.id }}" {% if loop.index <= 3 %}open{% endif %}
+                class="{% if cc_values.get(finding.id, 0) >= 25 %}urgency-extreme{% elif cc_values.get(finding.id, 0) >= 15 %}urgency-high{% endif %}">
+                <summary style="{% if cc_values.get(finding.id, 0) < 15 %}border-left: 3px solid var(--yellow);{% endif %}">
+                    <span class="badge badge-warning">{{ finding.id }}</span>
+                    <span class="badge badge-category">{{ finding.category.value }}</span>
+                    {% if finding.file_path %}
+                    <span style="font-family: monospace; font-size: 13px;">{{ finding.file_path }}{% if finding.line_start %}:{{ finding.line_start }}{% endif %}</span>
+                    {% endif %}
+                    <span style="flex: 1;">{{ finding.title }}</span>
+                </summary>
+                <div class="finding-body">
+                    <p>{{ finding.description }}</p>
+                    {% if finding.suggested_fix %}
+                    <div class="fix-box">
+                        <h4>Fix: {{ finding.suggested_fix.description }}</h4>
+                        {% if finding.suggested_fix.code_before %}
+                        <div class="code-diff">
+                            <div class="code-before"><pre>{{ finding.suggested_fix.code_before }}</pre></div>
+                            {% if finding.suggested_fix.code_after %}
+                            <div class="code-after"><pre>{{ finding.suggested_fix.code_after }}</pre></div>
+                            <button class="copy-btn" onclick="copyFix(this)">Copiar fix</button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if finding.suggested_fix.explanation %}
+                        <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px;">{{ finding.suggested_fix.explanation }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if infos %}
+        <div class="section">
+            <h2 style="color: var(--blue);">Info ({{ infos | length }})</h2>
+            {% if info_summary %}
+            <div style="color: var(--text-muted); font-size: 13px; margin: -8px 0 12px 0;">{{ info_summary }}</div>
+            {% endif %}
+            {% for finding in infos %}
+            <details id="finding-{{ finding.id }}">
+                <summary style="border-left: 3px solid var(--blue);">
+                    <span class="badge badge-info">{{ finding.id }}</span>
+                    <span class="badge badge-category">{{ finding.category.value }}</span>
+                    {% if finding.file_path %}
+                    <span style="font-family: monospace; font-size: 13px;">{{ finding.file_path }}{% if finding.line_start %}:{{ finding.line_start }}{% endif %}</span>
+                    {% endif %}
+                    <span style="flex: 1;">{{ finding.title }}</span>
+                </summary>
+                <div class="finding-body">
+                    <p>{{ finding.description }}</p>
+                    {% if finding.suggested_fix %}
+                    <div class="fix-box">
+                        <h4>Fix: {{ finding.suggested_fix.description }}</h4>
+                        {% if finding.suggested_fix.code_before %}
+                        <div class="code-diff">
+                            <div class="code-before"><pre>{{ finding.suggested_fix.code_before }}</pre></div>
+                            {% if finding.suggested_fix.code_after %}
+                            <div class="code-after"><pre>{{ finding.suggested_fix.code_after }}</pre></div>
+                            <button class="copy-btn" onclick="copyFix(this)">Copiar fix</button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if finding.suggested_fix.explanation %}
+                        <p style="color: var(--text-muted); margin-top: 8px; font-size: 13px;">{{ finding.suggested_fix.explanation }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Hidden findings banner -->
+        {% if hidden_total > 0 %}
+        <div class="filter-banner">
+            {{ hidden_total }} hallazgo(s) oculto(s) por filtro de severidad.
+            Ejecutar con <code>--severity critical,warning,info</code> para verlos.
+        </div>
+        {% endif %}
+
+        <!-- Code Analysis Summary -->
         <div class="section">
             <h2>Code Analysis</h2>
             <div class="card">
                 <table>
+                    <tr>
+                        <td>Total Functions</td>
+                        <td><strong>{{ analysis.total_functions }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Tested Functions</td>
+                        <td><strong>{{ analysis.tested_function_count }}</strong></td>
+                    </tr>
                     <tr>
                         <td>Average Complexity</td>
                         <td><strong>{{ analysis.avg_complexity | round(1) }}</strong></td>
@@ -215,150 +468,71 @@
                         <td>High Coupling Modules</td>
                         <td><strong>{{ analysis.coupling_issues | length }}</strong></td>
                     </tr>
+                    {% if analysis.estimated_coverage > 0 %}
+                    <tr>
+                        <td>Estimated Coverage</td>
+                        <td><strong>{{ analysis.estimated_coverage | round(1) }}%</strong></td>
+                    </tr>
+                    {% endif %}
                 </table>
-            </div>
-        </div>
-
-        <!-- Phase Results -->
-        <div class="section">
-            <h2>Test Phases</h2>
-            {% for phase in execution.phases %}
-            <details {% if phase.failed > 0 %}open{% endif %}>
-                <summary>
-                    <span class="badge {% if phase.failed == 0 %}badge-pass{% else %}badge-fail{% endif %}">
-                        {% if phase.failed == 0 %}PASS{% else %}FAIL{% endif %}
-                    </span>
-                    <strong>{{ phase.phase.value | upper }}</strong>
-                    &mdash;
-                    {{ phase.passed }}/{{ phase.total_tests }} passed
-                    ({{ (phase.success_rate * 100) | round(1) }}%)
-                    &mdash;
-                    {{ phase.duration.total_seconds() | round(1) }}s
-                </summary>
-                <div style="padding: 12px;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Test</th>
-                                <th>Status</th>
-                                <th>Duration</th>
-                                <th>Error</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for test in phase.test_results %}
-                            <tr>
-                                <td>{{ test.name }}</td>
-                                <td>
-                                    <span class="badge {% if test.passed %}badge-pass{% else %}badge-fail{% endif %}">
-                                        {% if test.passed %}PASS{% else %}FAIL{% endif %}
-                                    </span>
-                                </td>
-                                <td>{{ test.duration_ms | round(0) }}ms</td>
-                                <td>
-                                    {% if test.error_message %}
-                                    <pre>{{ test.error_message[:500] }}</pre>
-                                    {% else %}
-                                    &mdash;
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </details>
-            {% endfor %}
-        </div>
-
-        <!-- AI Generation Stats -->
-        {% if strategy.ai_generation_used %}
-        <div class="section">
-            <h2>AI Test Generation</h2>
-            <div class="card">
-                <table>
-                    <tr>
-                        <td>Tests Attempted</td>
-                        <td><strong>{{ strategy.generation_stats.get('attempted', 0) }}</strong></td>
-                    </tr>
-                    <tr>
-                        <td>Tests Valid</td>
-                        <td><strong style="color: var(--green);">{{ strategy.generation_stats.get('valid', 0) }}</strong></td>
-                    </tr>
-                    <tr>
-                        <td>Tests Failed</td>
-                        <td><strong style="color: var(--red);">{{ strategy.generation_stats.get('failed', 0) }}</strong></td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Failed Tests Details -->
-        {% if quality.failed_tests %}
-        <div class="section">
-            <h2>Detalle de Tests Fallidos</h2>
-            {% for test in quality.failed_tests %}
-            <details style="margin-bottom: 12px;" {% if loop.index <= 5 %}open{% endif %}>
-                <summary style="border-left: 3px solid var(--red);">
-                    <span class="badge badge-fail">{{ test.category | upper }}</span>
-                    <strong>{{ test.test_name }}</strong>
-                    {% if test.file_path %}
-                    <span style="color: var(--text-muted); font-size: 12px;">
-                        — {{ test.file_path }}{% if test.line_number %}:{{ test.line_number }}{% endif %}
-                    </span>
-                    {% endif %}
-                </summary>
-                <div style="padding: 12px; background: var(--bg-card); margin-top: 4px; border-radius: 4px;">
-                    <div style="margin-bottom: 8px;">
-                        <strong style="color: var(--text-muted);">Error:</strong>
-                        <span>{{ test.summary }}</span>
+                <!-- CC Legend -->
+                <details style="margin-top: 12px;">
+                    <summary style="font-size: 13px; color: var(--text-muted); cursor: pointer; background: transparent; padding: 4px 0;">
+                        &#9432; Que es CC (Complejidad Ciclomatica)?
+                    </summary>
+                    <div style="padding: 12px; font-size: 13px; color: var(--text-muted); background: var(--bg); border-radius: 4px; margin-top: 8px;">
+                        <strong>CC</strong> mide el numero de caminos independientes en el codigo (ramas if/else, loops, try/catch).
+                        <div style="margin-top: 8px; display: flex; gap: 16px; flex-wrap: wrap;">
+                            <span>&#9679; <strong>1-10</strong> Normal</span>
+                            <span style="color: var(--yellow);">&#9679; <strong>11-20</strong> Alta (dificil de testear)</span>
+                            <span style="color: var(--orange);">&#9679; <strong>21-50</strong> Muy alta</span>
+                            <span style="color: var(--red);">&#9679; <strong>&gt;50</strong> Critica</span>
+                        </div>
                     </div>
-                    {% if test.code_snippet %}
-                    <pre style="font-size: 12px; margin-bottom: 8px;">{{ test.code_snippet }}</pre>
-                    {% endif %}
-                    <div style="border-left: 3px solid var(--blue); padding-left: 12px; background: rgba(88, 166, 255, 0.05); padding: 8px 12px; border-radius: 0 4px 4px 0;">
-                        <strong style="color: var(--blue);">💡 Recomendación:</strong>
-                        <span>{{ test.recommendation }}</span>
-                    </div>
-                </div>
-            </details>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Risk Areas & Recommendations -->
-        {% if quality.risk_areas or quality.recommendations %}
-        <div class="section">
-            <h2>Resumen y Acciones</h2>
-            <div class="grid" style="grid-template-columns: 1fr 1fr;">
-                <div>
-                    <h3 style="color: var(--red); margin-bottom: 12px;">Áreas de Riesgo</h3>
-                    {% for risk in quality.risk_areas %}
-                    <div class="risk-item">{{ risk }}</div>
-                    {% endfor %}
-                    {% if not quality.risk_areas %}
-                    <div style="color: var(--green);">Sin áreas de riesgo identificadas.</div>
-                    {% endif %}
-                </div>
-                <div>
-                    <h3 style="color: var(--blue); margin-bottom: 12px;">Plan de Acción</h3>
-                    {% for rec in quality.recommendations %}
-                    <div class="rec-item">{{ rec | safe }}</div>
-                    {% endfor %}
-                    {% if not quality.recommendations %}
-                    <div style="color: var(--green);">Sin recomendaciones pendientes.</div>
-                    {% endif %}
-                </div>
+                </details>
             </div>
+        </div>
+
+        {% else %}
+        <!-- No diagnosis data -->
+        <div class="section" style="text-align: center; padding: 48px;">
+            <p style="color: var(--text-muted);">No diagnosis data available.</p>
         </div>
         {% endif %}
     </div>
 
     <footer>
         <div class="container">
-            Generated by AutoTest CLI v{{ version }} &nbsp;|&nbsp; Report ID: <code>{{ report_id }}</code>
+            {% if fixable_count > 0 %}
+            <p style="margin-bottom: 8px;">
+                Ejecutar <code>autotest diagnose --fix</code> para aplicar {{ fixable_count }} correccione(s) automaticamente.
+            </p>
+            {% endif %}
+            {% if hidden_total > 0 %}
+            <p style="margin-bottom: 8px;">
+                {{ hidden_total }} hallazgo(s) oculto(s) &mdash; usar <code>--severity critical,warning,info</code> para verlos.
+            </p>
+            {% endif %}
+            <p>
+                Generated by Code Doctor v{{ version }} &nbsp;|&nbsp; Report ID: <code>{{ report_id }}</code>
+            </p>
         </div>
     </footer>
+    <script>
+    function copyFix(btn) {
+        var codeAfter = btn.previousElementSibling;
+        var pre = codeAfter.querySelector('pre');
+        if (!pre) return;
+        var text = pre.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+            btn.textContent = 'Copiado!';
+            btn.classList.add('copied');
+            setTimeout(function() {
+                btn.textContent = 'Copiar fix';
+                btn.classList.remove('copied');
+            }, 2000);
+        });
+    }
+    </script>
 </body>
 </html>

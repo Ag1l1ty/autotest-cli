@@ -45,11 +45,19 @@ def find_untested_functions(
         ]
 
         is_tested = any(p in test_content for p in patterns)
-        
-        # Also check for direct references
+
+        # Check for direct references with assertion within ~10 lines (500 chars)
         if not is_tested:
             is_tested = bool(re.search(
-                rf"\b{re.escape(name_lower)}\b.*(?:assert|expect|mock|spy|stub)",
+                rf"\b{re.escape(name_lower)}\b.{{0,500}}(?:assert|expect|mock|spy|stub)",
+                test_content,
+                re.DOTALL,
+            ))
+
+        # Check if function is called in test code (name followed by parenthesis)
+        if not is_tested:
+            is_tested = bool(re.search(
+                rf"\b{re.escape(name_lower)}\s*\(",
                 test_content,
             ))
 

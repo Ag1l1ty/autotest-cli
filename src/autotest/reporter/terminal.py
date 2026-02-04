@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 from rich.console import Console
@@ -12,15 +13,14 @@ from rich.tree import Tree
 
 from autotest.config import AutoTestConfig
 from autotest.models.analysis import AnalysisReport
-from autotest.models.adaptation import TestStrategy
-from autotest.models.execution import ExecutionReport
+from autotest.models.diagnosis import DiagnosisReport, Finding, Severity
 from autotest.models.project import ProjectInfo
-from autotest.models.report import QualitySummary, ReportData
+from autotest.models.report import ReportData
 from autotest.reporter.base import BaseReporter
 
 
 class TerminalReporter(BaseReporter):
-    """Generates rich terminal output for test results."""
+    """Generates rich terminal output for diagnosis results."""
 
     def __init__(self, config: AutoTestConfig) -> None:
         self.config = config
@@ -30,9 +30,12 @@ class TerminalReporter(BaseReporter):
         """Generate full terminal report."""
         self.print_project_info(report_data.project)
         self.print_analysis(report_data.analysis)
-        self.print_strategy(report_data.strategy)
-        self.print_execution(report_data.execution)
-        self.print_quality_summary(report_data.quality)
+        if report_data.diagnosis:
+            self.print_diagnosis(
+                report_data.diagnosis,
+                top_n=self.config.top_findings,
+                severity_filter=self.config.severity_filter,
+            )
         return "terminal"
 
     def print_project_info(self, project: ProjectInfo) -> None:
@@ -68,171 +71,143 @@ class TerminalReporter(BaseReporter):
 
         self.console.print(table)
 
-        # Print high-complexity functions
-        if analysis.high_complexity_functions:
-            hc_table = Table(title="High Complexity Functions", border_style="yellow")
-            hc_table.add_column("Function")
-            hc_table.add_column("File")
-            hc_table.add_column("Complexity", justify="right")
+    def print_diagnosis(
+        self,
+        diagnosis: DiagnosisReport,
+        top_n: int = 5,
+        severity_filter: list[str] | None = None,
+    ) -> None:
+        """Print diagnosis findings with actionable output."""
+        self.console.print()
 
-            for func in analysis.high_complexity_functions[:10]:
-                hc_table.add_row(
-                    func.name,
-                    str(func.file_path.name),
-                    str(func.cyclomatic_complexity),
-                )
-            self.console.print(hc_table)
-
-    def print_strategy(self, strategy: TestStrategy) -> None:
-        """Print adaptation strategy info."""
-        table = Table(title="Test Strategy", border_style="magenta")
-        table.add_column("Language")
-        table.add_column("Test Runner")
-        table.add_column("Coverage Tool")
-        table.add_column("Security Tool")
-
-        for tc in strategy.toolchains:
-            table.add_row(
-                tc.language.value,
-                tc.test_runner,
-                tc.coverage_tool or "—",
-                tc.security_tool or "—",
-            )
-
-        self.console.print(table)
-
-        if strategy.ai_generation_used:
-            stats = strategy.generation_stats
-            unit_info = (
-                f"Unit Tests - Attempted: {stats.get('attempted', 0)} | "
-                f"Valid: [green]{stats.get('valid', 0)}[/] | "
-                f"Failed: [red]{stats.get('failed', 0)}[/]"
-            )
-            integration_info = ""
-            if stats.get('integration_valid', 0) > 0:
-                integration_info = (
-                    f"\nIntegration Tests - Generated: [green]{stats.get('integration_valid', 0)}[/] with mocks"
-                )
-            self.console.print(
-                Panel(
-                    unit_info + integration_info,
-                    title="AI Test Generation",
-                    border_style="magenta",
-                )
-            )
-
-    def print_execution(self, execution: ExecutionReport) -> None:
-        """Print execution results per phase."""
-        for phase_result in execution.phases:
-            color = "green" if phase_result.failed == 0 else "red"
-            status = "PASS" if phase_result.failed == 0 else "FAIL"
-
-            table = Table(
-                title=f"Phase: {phase_result.phase.value.upper()} [{status}]",
-                border_style=color,
-            )
-            table.add_column("Test", style="bold")
-            table.add_column("Status")
-            table.add_column("Duration", justify="right")
-            table.add_column("Error")
-
-            for test in phase_result.test_results:
-                status_text = Text("PASS", style="green") if test.passed else Text("FAIL", style="red")
-                table.add_row(
-                    test.name,
-                    status_text,
-                    f"{test.duration_ms:.0f}ms",
-                    (test.error_message or "")[:80],
-                )
-
-            self.console.print(table)
-
-        # Overall summary
-        total = sum(p.total_tests for p in execution.phases)
-        passed = sum(p.passed for p in execution.phases)
-        failed = sum(p.failed for p in execution.phases)
-
-        summary_color = "green" if failed == 0 else "red"
-        self.console.print(
-            Panel(
-                f"Total: {total} | "
-                f"[green]Passed: {passed}[/] | "
-                f"[red]Failed: {failed}[/] | "
-                f"Pass Rate: {execution.overall_pass_rate * 100:.1f}%",
-                title="Execution Summary",
-                border_style=summary_color,
-            )
-        )
-
-    def print_quality_summary(self, quality: QualitySummary) -> None:
-        """Print quality score and recommendations."""
-        score = quality.overall_score
+        # Health Score
+        score = diagnosis.health_score
+        label = diagnosis.health_label.upper()
         if score >= 80:
             score_style = "bold green"
         elif score >= 60:
             score_style = "bold yellow"
+        elif score >= 40:
+            score_style = "bold red"
         else:
             score_style = "bold red"
 
-        self.console.print(
-            Panel(
-                Text(f"{score:.0f}/100", style=score_style, justify="center"),
-                title=f"Quality Score: {quality.test_health.upper()}",
-                border_style=score_style.split()[-1],
-            )
-        )
+        self.console.print(Panel(
+            f"[{score_style}]{score:.0f}/100[/] ({label})",
+            title="Health Score",
+            border_style=score_style.split()[-1],
+        ))
 
-        # Print detailed failed tests info
-        if quality.failed_tests:
+        # Filter findings by severity
+        filter_set = set(severity_filter or ["critical", "warning"])
+        findings = [
+            f for f in diagnosis.findings
+            if f.severity.value in filter_set
+        ]
+
+        if not findings:
+            self.console.print("[green]No se encontraron problemas con la severidad seleccionada.[/green]")
+            return
+
+        # Group by severity
+        criticals = [f for f in findings if f.severity == Severity.CRITICAL]
+        warnings = [f for f in findings if f.severity == Severity.WARNING]
+        infos = [f for f in findings if f.severity == Severity.INFO]
+
+        if criticals:
             self.console.print()
-            table = Table(
-                title="[bold red]Tests Fallidos - Detalle[/]",
-                border_style="red",
-                show_lines=True,
-            )
-            table.add_column("Test", style="bold", max_width=30)
-            table.add_column("Categoría", justify="center", max_width=12)
-            table.add_column("Recomendación", max_width=60)
+            self._print_finding_group("CRITICAL", criticals, "red", top_n)
 
-            for test in quality.failed_tests[:10]:  # Show top 10
-                category_colors = {
-                    "import": "yellow",
-                    "mock": "magenta",
-                    "assertion": "red",
-                    "syntax": "red",
-                    "type": "cyan",
-                    "attribute": "cyan",
-                    "network": "blue",
-                    "environment": "yellow",
-                }
-                cat_color = category_colors.get(test.category, "white")
+        if warnings:
+            self.console.print()
+            self._print_finding_group("WARNING", warnings, "yellow", top_n)
 
-                table.add_row(
-                    test.test_name.split(":")[-1],  # Short name
-                    f"[{cat_color}]{test.category.upper()}[/]",
-                    test.recommendation[:100],
-                )
+        if infos:
+            self.console.print()
+            self._print_finding_group("INFO", infos, "dim", top_n)
 
-            self.console.print(table)
-
-            if len(quality.failed_tests) > 10:
+        # Top Actions
+        self.console.print()
+        actionable = [f for f in findings if f.suggested_fix][:top_n]
+        if actionable:
+            self.console.print(f"[bold]Top {min(top_n, len(actionable))} acciones:[/]")
+            for i, finding in enumerate(actionable, 1):
+                location = ""
+                if finding.file_path and finding.line_start:
+                    location = f" en {Path(finding.file_path).name}:{finding.line_start}"
+                fix = finding.suggested_fix
                 self.console.print(
-                    f"[dim]... y {len(quality.failed_tests) - 10} tests más. "
-                    "Ver reporte HTML para detalles completos.[/]"
+                    f"  {i}. {fix.description}{location}"
                 )
 
-        if quality.risk_areas:
-            self.console.print()
-            tree = Tree("[bold red]Áreas de Riesgo[/]")
-            for risk in quality.risk_areas:
-                tree.add(f"[red]⚠ {risk}[/]")
-            self.console.print(tree)
+        # Summary
+        self.console.print()
+        self.console.print(f"[dim]{diagnosis.summary}[/]")
 
-        if quality.recommendations:
-            self.console.print()
-            tree = Tree("[bold blue]Plan de Acción[/]")
-            for rec in quality.recommendations[:15]:  # Limit to avoid spam
-                # Handle markdown bold
-                rec_formatted = rec.replace("**", "[bold]").replace("**", "[/bold]")
-                tree.add(f"[blue]→ {rec_formatted}[/]")
-            self.console.print(tree)
+        if diagnosis.ai_tokens_used > 0:
+            self.console.print(
+                f"[dim]AI: {diagnosis.functions_analyzed} funciones analizadas, "
+                f"{diagnosis.ai_tokens_used} tokens usados[/]"
+            )
+
+        # Hidden findings indicator
+        total_findings = diagnosis.critical_count + diagnosis.warning_count + diagnosis.info_count
+        shown_findings = len(findings)
+        hidden_count = total_findings - shown_findings
+        if hidden_count > 0:
+            self.console.print(
+                f"[dim]{hidden_count} hallazgo(s) oculto(s) por filtro de severidad "
+                f"— usar --severity critical,warning,info para verlos.[/]"
+            )
+
+    def _print_finding_group(
+        self,
+        label: str,
+        findings: list[Finding],
+        color: str,
+        max_show: int = 0,
+    ) -> None:
+        """Print a group of findings with the same severity."""
+        total = len(findings)
+        self.console.print(f"[bold {color}]{label} ({total})[/]")
+
+        # Category mini-summary
+        cat_counts = Counter(f.category.value.replace("_", " ") for f in findings)
+        summary = ", ".join(f"{n} {cat}" for cat, n in cat_counts.most_common())
+        if summary:
+            self.console.print(f"[dim]  {summary}[/]")
+
+        show = findings[:max_show] if max_show > 0 else findings
+        hidden = total - len(show)
+
+        for finding in show:
+            # ID + category + location
+            location = ""
+            if finding.file_path:
+                fname = Path(finding.file_path).name
+                if finding.line_start:
+                    location = f"{fname}:{finding.line_start}"
+                else:
+                    location = fname
+
+            category = finding.category.value.replace("_", " ")
+            self.console.print(
+                f"[{color}]{finding.id}[/]  "
+                f"[dim]{category:<14}[/] "
+                f"[bold]{location:<25}[/] "
+                f"{finding.title}"
+            )
+
+            # Fix preview
+            if finding.suggested_fix:
+                fix = finding.suggested_fix
+                if fix.description:
+                    self.console.print(
+                        f"{'':>6}Fix: {fix.description}"
+                    )
+                if fix.code_after:
+                    for line in fix.code_after.splitlines()[:3]:
+                        self.console.print(f"{'':>6}[green]>>> {line}[/]")
+
+        if hidden > 0:
+            self.console.print(f"[dim]  ... y {hidden} mas (usar --top {total} para ver todos)[/]")

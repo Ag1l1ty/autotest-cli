@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from pathlib import Path
-
 import pytest
 
-from autotest.models.project import Language, TestPhase, ProjectInfo, LanguageInfo
-from autotest.models.analysis import FunctionMetrics, AnalysisReport
-from autotest.models.adaptation import ToolChainConfig, GeneratedTest, TestStrategy
-from autotest.models.execution import TestResult, PhaseResult, ExecutionReport
+from autotest.models.project import Language, TestPhase
+from autotest.models.diagnosis import (
+    DiagnosisReport,
+    Finding,
+    FindingCategory,
+    Severity,
+    SuggestedFix,
+)
 from autotest.models.report import QualitySummary, ReportData
 
 
@@ -39,83 +40,62 @@ class TestTestPhaseEnum:
         assert "quality" in phases
 
 
-class TestToolChainConfig:
+class TestFinding:
 
-    def test_defaults(self) -> None:
-        tc = ToolChainConfig(language=Language.PYTHON, test_runner="pytest")
-        assert tc.test_command == []
-        assert tc.coverage_tool == ""
-        assert tc.quality_tools == []
-
-    def test_full_config(self) -> None:
-        tc = ToolChainConfig(
-            language=Language.PYTHON,
-            test_runner="pytest",
-            test_command=["python", "-m", "pytest"],
-            coverage_tool="coverage",
-            coverage_command=["coverage", "run"],
-            mock_library="pytest-mock",
-            security_tool="bandit",
-            security_command=["bandit", "-r", "."],
-            quality_tools=["ruff", "mypy"],
-            quality_commands=[["ruff", "check", "."], ["mypy", "."]],
+    def test_basic_finding(self) -> None:
+        f = Finding(
+            severity=Severity.CRITICAL,
+            category=FindingCategory.BUG,
+            title="Test bug",
+            description="A test bug description",
         )
-        assert len(tc.quality_commands) == 2
-
-
-class TestGeneratedTest:
-
-    def test_default_invalid(self) -> None:
-        gt = GeneratedTest(
-            target_function="my_func",
-            file_path=Path("test_my_func.py"),
-            source_code="def test_it(): pass",
-            language=Language.PYTHON,
-            framework="pytest",
-        )
-        assert gt.is_valid is False
-        assert gt.confidence == 0.0
+        assert f.severity == Severity.CRITICAL
+        assert f.confidence == 1.0
+        assert f.source == "static"
 
     def test_confidence_bounds(self) -> None:
         with pytest.raises(Exception):
-            GeneratedTest(
-                target_function="f",
-                file_path=Path("t.py"),
-                source_code="",
-                language=Language.PYTHON,
-                framework="pytest",
+            Finding(
+                severity=Severity.INFO,
+                category=FindingCategory.STYLE,
+                title="x",
+                description="x",
                 confidence=1.5,
             )
 
-
-class TestTestResult:
-
-    def test_basic_result(self) -> None:
-        r = TestResult(name="test_add", passed=True, duration_ms=12.5)
-        assert r.passed is True
-        assert r.error_message is None
-
-
-class TestPhaseResult:
-
-    def test_success_rate(self) -> None:
-        now = datetime.now()
-        pr = PhaseResult(
-            phase=TestPhase.UNIT,
-            started_at=now,
-            finished_at=now,
-            total_tests=10,
-            passed=8,
-            failed=2,
-            success_rate=0.8,
+    def test_finding_with_fix(self) -> None:
+        fix = SuggestedFix(
+            description="Use env var",
+            code_before="secret = 'abc'",
+            code_after="secret = os.environ['SECRET']",
         )
-        assert pr.success_rate == 0.8
+        f = Finding(
+            severity=Severity.CRITICAL,
+            category=FindingCategory.SECURITY,
+            title="Hardcoded secret",
+            description="Found hardcoded secret",
+            suggested_fix=fix,
+        )
+        assert f.suggested_fix.code_before == "secret = 'abc'"
+
+
+class TestDiagnosisReport:
+
+    def test_defaults(self) -> None:
+        dr = DiagnosisReport()
+        assert dr.findings == []
+        assert dr.health_score == 100.0
+        assert dr.health_label == "healthy"
+
+    def test_health_score_bounds(self) -> None:
+        with pytest.raises(Exception):
+            DiagnosisReport(health_score=150.0)
 
 
 class TestQualitySummary:
 
     def test_score_bounds(self) -> None:
-        qs = QualitySummary(overall_score=85.0, test_health="healthy")
+        qs = QualitySummary(overall_score=85.0)
         assert qs.overall_score == 85.0
 
     def test_invalid_score(self) -> None:

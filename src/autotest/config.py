@@ -10,7 +10,13 @@ import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
-from autotest.constants import DEFAULT_OUTPUT_FORMATS, DEFAULT_PHASES
+from autotest.constants import (
+    DEFAULT_AI_MAX_FUNCTIONS,
+    DEFAULT_MIN_FINDING_CONFIDENCE,
+    DEFAULT_OUTPUT_FORMATS,
+    DEFAULT_SEVERITY_FILTER,
+    DEFAULT_TOP_FINDINGS,
+)
 
 
 def _get_api_key() -> str:
@@ -30,9 +36,6 @@ class AutoTestConfig(BaseSettings):
     # Target project
     target_path: Path = Field(default=Path("."))
 
-    # Phases to run
-    phases: list[str] = Field(default_factory=lambda: list(DEFAULT_PHASES))
-
     # Output configuration
     output_formats: list[str] = Field(default_factory=lambda: list(DEFAULT_OUTPUT_FORMATS))
     output_dir: Path = Field(default=Path("./reports"))
@@ -41,18 +44,19 @@ class AutoTestConfig(BaseSettings):
     ai_enabled: bool = True
     ai_api_key: str = Field(default_factory=_get_api_key)
     ai_model: str = "claude-sonnet-4-20250514"
-    ai_max_functions: int = 20
+    ai_max_functions: int = DEFAULT_AI_MAX_FUNCTIONS
     ai_max_cost_usd: float = 5.0
+
+    # Diagnosis configuration
+    min_finding_confidence: float = DEFAULT_MIN_FINDING_CONFIDENCE
+    severity_filter: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_SEVERITY_FILTER)
+    )
+    top_findings: int = DEFAULT_TOP_FINDINGS
 
     # Analysis thresholds
     complexity_threshold: int = 10
     coupling_threshold: int = 8
-
-    # Execution configuration
-    timeout_seconds: int = 300
-    parallel: bool = True
-    fail_fast: bool = False
-    sandbox_enabled: bool = True
 
     # Logging
     verbose: bool = False

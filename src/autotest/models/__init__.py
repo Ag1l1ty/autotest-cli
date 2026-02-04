@@ -13,15 +13,12 @@ from autotest.models.analysis import (
     FunctionMetrics,
     ModuleMetrics,
 )
-from autotest.models.adaptation import (
-    GeneratedTest,
-    TestStrategy,
-    ToolChainConfig,
-)
-from autotest.models.execution import (
-    ExecutionReport,
-    PhaseResult,
-    TestResult,
+from autotest.models.diagnosis import (
+    DiagnosisReport,
+    Finding,
+    FindingCategory,
+    Severity,
+    SuggestedFix,
 )
 from autotest.models.report import QualitySummary, ReportData
 
@@ -35,12 +32,11 @@ __all__ = [
     "CouplingInfo",
     "FunctionMetrics",
     "ModuleMetrics",
-    "GeneratedTest",
-    "TestStrategy",
-    "ToolChainConfig",
-    "ExecutionReport",
-    "PhaseResult",
-    "TestResult",
+    "DiagnosisReport",
+    "Finding",
+    "FindingCategory",
+    "Severity",
+    "SuggestedFix",
     "QualitySummary",
     "ReportData",
 ]

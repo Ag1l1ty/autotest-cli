@@ -123,13 +123,14 @@ COMPLEXITY_MEDIUM = 10
 COMPLEXITY_HIGH = 20
 COMPLEXITY_VERY_HIGH = 50
 
-# Default phases to run
-DEFAULT_PHASES = ["smoke", "unit", "integration", "quality"]
-
 # Default output formats
 DEFAULT_OUTPUT_FORMATS = ["terminal"]
 
-# AI generation limits
-MAX_FUNCTIONS_PER_BATCH = 10
-MAX_CONCURRENT_AI_REQUESTS = 3
+# AI model
 DEFAULT_AI_MODEL = "claude-sonnet-4-20250514"
+
+# Diagnosis defaults
+DEFAULT_AI_MAX_FUNCTIONS = 10
+DEFAULT_MIN_FINDING_CONFIDENCE = 0.6
+DEFAULT_SEVERITY_FILTER = ["critical", "warning"]
+DEFAULT_TOP_FINDINGS = 5

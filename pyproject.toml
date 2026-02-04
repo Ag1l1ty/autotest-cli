@@ -1,7 +1,7 @@
 [project]
-name = "autotest-cli"
-version = "0.1.0"
-description = "Analizador automatico de proyectos de software - detecta tecnologias, analiza codigo y ejecuta pruebas"
+name = "code-doctor"
+version = "0.2.0"
+description = "Diagnostico inteligente de codigo - encuentra problemas reales y da fixes concretos"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
@@ -37,6 +37,7 @@ dev = [
 
 [project.scripts]
 autotest = "autotest.cli:app"
+codedoctor = "autotest.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -57,6 +58,7 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "SIM"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
-[tool.autotest]
-phases = ["smoke", "unit", "quality"]
-output_formats = ["terminal"]
+[tool.codedoctor]
+output_formats = ["terminal", "html"]
+severity_filter = ["critical", "warning"]
+top_findings = 5

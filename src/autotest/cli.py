@@ -16,7 +16,7 @@ from autotest.config import load_config
 
 app = typer.Typer(
     name="autotest",
-    help="Analizador automatico de proyectos de software.",
+    help="Code Doctor - Diagnostico inteligente de proyectos de software.",
     add_completion=False,
 )
 console = Console()
@@ -24,7 +24,7 @@ console = Console()
 
 def version_callback(value: bool) -> None:
     if value:
-        console.print(f"[bold]AutoTest CLI[/bold] v{__version__}")
+        console.print(f"[bold]Code Doctor[/bold] v{__version__}")
         raise typer.Exit()
 
 
@@ -39,41 +39,83 @@ def main(
         is_eager=True,
     ),
 ) -> None:
-    """AutoTest CLI - Analiza proyectos y ejecuta pruebas automaticamente."""
+    """Code Doctor - Encuentra problemas reales y da fixes concretos."""
 
 
 @app.command()
-def scan(
-    path: Path = typer.Argument(Path("."), help="Ruta al proyecto a analizar."),
+def diagnose(
+    path: Path = typer.Argument(Path("."), help="Ruta al proyecto a diagnosticar."),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Archivo de configuracion."),
-    output: str = typer.Option("terminal,html", "--output", "-o", help="Formatos de salida: terminal,json,html"),
-    phases: str = typer.Option("smoke,unit,integration,quality", "--phases", "-p", help="Fases a ejecutar."),
-    no_ai: bool = typer.Option(False, "--no-ai", help="Desactivar generacion de tests con IA."),
+    output: str = typer.Option("terminal,html", "--output", "-o", help="Formatos de salida: terminal,json,html,markdown"),
+    severity: str = typer.Option("critical,warning", "--severity", "-s", help="Severidades a mostrar: critical,warning,info"),
+    top: int = typer.Option(5, "--top", "-t", help="Numero maximo de findings por grupo de severidad."),
+    no_ai: bool = typer.Option(False, "--no-ai", help="Desactivar revision con IA."),
     verbose: bool = typer.Option(False, "--verbose", help="Salida detallada."),
-    fail_fast: bool = typer.Option(False, "--fail-fast", help="Detener en primera falla."),
     open_report: bool = typer.Option(False, "--open", help="Abrir reporte HTML en navegador."),
+    fix: bool = typer.Option(False, "--fix", help="Aplicar fixes automaticamente al codigo fuente."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Mostrar que fixes se aplicarian sin modificar archivos."),
 ) -> None:
-    """Ejecutar pipeline completo: detectar, analizar, adaptar, ejecutar, reportar."""
+    """Diagnosticar proyecto: detectar, analizar, diagnosticar, reportar."""
     target = path.resolve()
     if not target.exists():
         console.print(f"[red]Error:[/red] La ruta '{target}' no existe.")
         raise typer.Exit(1)
 
-    # Por defecto, guardar reportes en el directorio del proyecto
     output_dir = target / "reports"
 
     cfg = load_config(
         target_path=target,
         config_file=config,
         output_formats=output.split(","),
-        phases=phases.split(","),
         ai_enabled=not no_ai,
         verbose=verbose,
-        fail_fast=fail_fast,
         output_dir=output_dir,
+        severity_filter=severity.split(","),
+        top_findings=top,
     )
 
-    asyncio.run(_run_pipeline(cfg, open_report=open_report))
+    exit_code = asyncio.run(_run_diagnosis(
+        cfg, open_report=open_report, apply_fix=fix, dry_run=dry_run
+    ))
+    raise typer.Exit(exit_code)
+
+
+@app.command()
+def scan(
+    path: Path = typer.Argument(Path("."), help="Ruta al proyecto a analizar."),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Archivo de configuracion."),
+    output: str = typer.Option("terminal,html", "--output", "-o", help="Formatos de salida: terminal,json,html,markdown"),
+    severity: str = typer.Option("critical,warning", "--severity", "-s", help="Severidades a mostrar."),
+    top: int = typer.Option(5, "--top", "-t", help="Numero maximo de findings por grupo de severidad."),
+    no_ai: bool = typer.Option(False, "--no-ai", help="Desactivar revision con IA."),
+    verbose: bool = typer.Option(False, "--verbose", help="Salida detallada."),
+    open_report: bool = typer.Option(False, "--open", help="Abrir reporte HTML en navegador."),
+    fix: bool = typer.Option(False, "--fix", help="Aplicar fixes automaticamente al codigo fuente."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Mostrar que fixes se aplicarian sin modificar archivos."),
+) -> None:
+    """Ejecutar diagnostico completo (alias de diagnose)."""
+    target = path.resolve()
+    if not target.exists():
+        console.print(f"[red]Error:[/red] La ruta '{target}' no existe.")
+        raise typer.Exit(1)
+
+    output_dir = target / "reports"
+
+    cfg = load_config(
+        target_path=target,
+        config_file=config,
+        output_formats=output.split(","),
+        ai_enabled=not no_ai,
+        verbose=verbose,
+        output_dir=output_dir,
+        severity_filter=severity.split(","),
+        top_findings=top,
+    )
+
+    exit_code = asyncio.run(_run_diagnosis(
+        cfg, open_report=open_report, apply_fix=fix, dry_run=dry_run
+    ))
+    raise typer.Exit(exit_code)
 
 
 @app.command()
@@ -106,60 +148,30 @@ def analyze(
     asyncio.run(_run_analyze(cfg))
 
 
-@app.command()
-def generate(
-    path: Path = typer.Argument(Path("."), help="Ruta al proyecto."),
-    no_ai: bool = typer.Option(False, "--no-ai", help="Desactivar generacion con IA."),
-    verbose: bool = typer.Option(False, "--verbose", help="Salida detallada."),
-) -> None:
-    """Generar estrategia de testing y tests con IA."""
-    target = path.resolve()
-    if not target.exists():
-        console.print(f"[red]Error:[/red] La ruta '{target}' no existe.")
-        raise typer.Exit(1)
-
-    cfg = load_config(target_path=target, ai_enabled=not no_ai, verbose=verbose)
-    asyncio.run(_run_generate(cfg))
-
-
-@app.command()
-def execute(
-    path: Path = typer.Argument(Path("."), help="Ruta al proyecto."),
-    phases: str = typer.Option("smoke,unit,integration,quality", "--phases", "-p", help="Fases a ejecutar."),
-    no_ai: bool = typer.Option(False, "--no-ai", help="Desactivar generacion con IA."),
-    verbose: bool = typer.Option(False, "--verbose", help="Salida detallada."),
-) -> None:
-    """Ejecutar pruebas del proyecto."""
-    target = path.resolve()
-    if not target.exists():
-        console.print(f"[red]Error:[/red] La ruta '{target}' no existe.")
-        raise typer.Exit(1)
-
-    cfg = load_config(
-        target_path=target,
-        phases=phases.split(","),
-        ai_enabled=not no_ai,
-        verbose=verbose,
-    )
-    asyncio.run(_run_execute(cfg))
-
-
 # ── Pipeline runners ──
 
 
-async def _run_pipeline(cfg: "AutoTestConfig", open_report: bool = False) -> None:
-    """Run the full autotest pipeline."""
+async def _run_diagnosis(
+    cfg: "AutoTestConfig",
+    open_report: bool = False,
+    apply_fix: bool = False,
+    dry_run: bool = False,
+) -> int:
+    """Run the diagnosis pipeline: Detect -> Analyze -> Diagnose -> Report.
+
+    Returns:
+        Exit code: 0 = healthy, 1 = critical findings found.
+    """
     import webbrowser
     from autotest.detector.scanner import ProjectScanner
     from autotest.analyzer.engine import AnalysisEngine
-    from autotest.adaptation.engine import AdaptationEngine
-    from autotest.executor.engine import ExecutionEngine
+    from autotest.diagnosis.engine import DiagnosisEngine
     from autotest.reporter.engine import ReportEngine
 
     console.print(Panel.fit(
-        f"[bold cyan]AutoTest CLI v{__version__}[/bold cyan]\n"
+        f"[bold cyan]Code Doctor v{__version__}[/bold cyan]\n"
         f"Proyecto: [green]{cfg.target_path}[/green]",
-        title="AutoTest",
+        title="Code Doctor",
     ))
 
     with Progress(
@@ -175,7 +187,7 @@ async def _run_pipeline(cfg: "AutoTestConfig", open_report: bool = False) -> Non
 
         if not project_info.languages:
             console.print("[yellow]No se detectaron lenguajes soportados.[/yellow]")
-            return
+            return 0
 
         # Phase 2: Analyze
         task = progress.add_task("Analizando codigo...", total=None)
@@ -183,22 +195,19 @@ async def _run_pipeline(cfg: "AutoTestConfig", open_report: bool = False) -> Non
         analysis = await analyzer.analyze(project_info)
         progress.update(task, completed=True, description="[green]Analisis completado[/green]")
 
-        # Phase 3: Adapt
-        task = progress.add_task("Configurando estrategia de testing...", total=None)
-        adapter = AdaptationEngine(cfg)
-        strategy = await adapter.adapt(project_info, analysis)
-        progress.update(task, completed=True, description="[green]Estrategia configurada[/green]")
+        # Phase 3: Diagnose
+        ai_label = "" if cfg.ai_enabled and cfg.ai_api_key else " (sin IA)"
+        task = progress.add_task(f"Diagnosticando{ai_label}...", total=None)
+        diagnoser = DiagnosisEngine(cfg)
+        diagnosis = await diagnoser.diagnose(project_info, analysis)
+        progress.update(task, completed=True, description="[green]Diagnostico completado[/green]")
 
-        # Phase 4: Execute
-        task = progress.add_task("Ejecutando pruebas...", total=None)
-        executor = ExecutionEngine(cfg)
-        execution = await executor.execute(strategy, cfg.target_path)
-        progress.update(task, completed=True, description="[green]Pruebas completadas[/green]")
-
-        # Phase 5: Report
+        # Phase 4: Report
         task = progress.add_task("Generando reportes...", total=None)
         reporter = ReportEngine(cfg)
-        report_data, generated_files = await reporter.report(project_info, analysis, strategy, execution)
+        report_data, generated_files = await reporter.report_diagnosis(
+            project_info, analysis, diagnosis
+        )
         progress.update(task, completed=True, description="[green]Reportes generados[/green]")
 
     # Show generated report files
@@ -218,6 +227,40 @@ async def _run_pipeline(cfg: "AutoTestConfig", open_report: bool = False) -> Non
             html_path = generated_files["html"]
             console.print(f"\n[cyan]Abriendo reporte en navegador...[/cyan]")
             webbrowser.open(f"file://{html_path}")
+
+    # Auto-fix mode
+    if apply_fix or dry_run:
+        from autotest.diagnosis.auto_fixer import apply_fixes
+
+        mode_label = "[yellow]DRY RUN[/yellow] " if dry_run else ""
+        console.print(f"\n{mode_label}[bold]Aplicando fixes...[/bold]")
+
+        fix_report = apply_fixes(
+            diagnosis.findings, cfg.target_path, dry_run=dry_run
+        )
+
+        if fix_report.applied:
+            console.print(f"[green]Fixes aplicados: {fix_report.applied_count}[/green]")
+            for r in fix_report.applied:
+                console.print(f"  [green]OK[/green] {r.finding_id} {r.file_path} — {r.message}")
+
+        if fix_report.skipped:
+            console.print(f"[yellow]Fixes omitidos: {fix_report.skipped_count}[/yellow]")
+            for r in fix_report.skipped:
+                console.print(f"  [dim]--[/dim] {r.finding_id} {r.file_path} — {r.message}")
+
+        if fix_report.failed:
+            console.print(f"[red]Fixes fallidos: {len(fix_report.failed)}[/red]")
+            for r in fix_report.failed:
+                console.print(f"  [red]!![/red] {r.finding_id} {r.file_path} — {r.message}")
+
+    # Exit code: 1 if critical findings found (useful for CI/CD)
+    if diagnosis.critical_count > 0:
+        console.print(
+            f"\n[bold red]Exit 1:[/bold red] {diagnosis.critical_count} problema(s) critico(s) encontrado(s)."
+        )
+        return 1
+    return 0
 
 
 async def _run_detect(cfg: "AutoTestConfig") -> None:
@@ -244,45 +287,3 @@ async def _run_analyze(cfg: "AutoTestConfig") -> None:
     reporter = TerminalReporter(cfg)
     reporter.print_project_info(project_info)
     reporter.print_analysis(analysis)
-
-
-async def _run_generate(cfg: "AutoTestConfig") -> None:
-    """Run detection + analysis + adaptation."""
-    from autotest.detector.scanner import ProjectScanner
-    from autotest.analyzer.engine import AnalysisEngine
-    from autotest.adaptation.engine import AdaptationEngine
-    from autotest.reporter.terminal import TerminalReporter
-
-    scanner = ProjectScanner(cfg)
-    project_info = await scanner.scan(cfg.target_path)
-    analyzer = AnalysisEngine(cfg)
-    analysis = await analyzer.analyze(project_info)
-    adapter = AdaptationEngine(cfg)
-    strategy = await adapter.adapt(project_info, analysis)
-    reporter = TerminalReporter(cfg)
-    reporter.print_project_info(project_info)
-    reporter.print_analysis(analysis)
-    reporter.print_strategy(strategy)
-
-
-async def _run_execute(cfg: "AutoTestConfig") -> None:
-    """Run detection + analysis + adaptation + execution."""
-    from autotest.detector.scanner import ProjectScanner
-    from autotest.analyzer.engine import AnalysisEngine
-    from autotest.adaptation.engine import AdaptationEngine
-    from autotest.executor.engine import ExecutionEngine
-    from autotest.reporter.terminal import TerminalReporter
-
-    scanner = ProjectScanner(cfg)
-    project_info = await scanner.scan(cfg.target_path)
-    analyzer = AnalysisEngine(cfg)
-    analysis = await analyzer.analyze(project_info)
-    adapter = AdaptationEngine(cfg)
-    strategy = await adapter.adapt(project_info, analysis)
-    executor = ExecutionEngine(cfg)
-    execution = await executor.execute(strategy, cfg.target_path)
-    reporter = TerminalReporter(cfg)
-    reporter.print_project_info(project_info)
-    reporter.print_analysis(analysis)
-    reporter.print_strategy(strategy)
-    reporter.print_execution(execution)

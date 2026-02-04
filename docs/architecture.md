@@ -1,19 +1,20 @@
-# Arquitectura de AutoTest CLI
+# Arquitectura de Code Doctor
 
 ## Version
-v0.1.0
+v0.2.0
 
 ## Vision General
 
-AutoTest CLI es una herramienta de linea de comandos que analiza proyectos de software automaticamente,
-identifica tecnologias, analiza calidad del codigo, genera tests con IA, y ejecuta pruebas en fases.
+Code Doctor es una herramienta de linea de comandos que diagnostica proyectos de software.
+Detecta tecnologias, analiza calidad del codigo, encuentra problemas reales (bugs, seguridad,
+complejidad) y proporciona fixes concretos y accionables.
 
 ## Diagrama de Alto Nivel
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         CLI (Typer + Rich)                          │
-│   autotest scan | detect | analyze | generate | execute             │
+│         autotest diagnose | scan | detect | analyze                 │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -25,25 +26,25 @@ identifica tecnologias, analiza calidad del codigo, genera tests con IA, y ejecu
         ┌─────────────────────────┼─────────────────────────┐
         ▼                         ▼                         ▼
 ┌───────────────┐       ┌───────────────┐       ┌───────────────┐
-│   Detector    │──────►│   Analyzer    │──────►│  Adaptation   │
+│   Detector    │──────►│   Analyzer    │──────►│   Diagnosis   │
 │               │       │               │       │               │
-│ ProjectInfo   │       │ AnalysisReport│       │ TestStrategy  │
+│ ProjectInfo   │       │ AnalysisReport│       │DiagnosisReport│
 └───────────────┘       └───────────────┘       └───────────────┘
                                                         │
                         ┌───────────────────────────────┘
                         ▼
-              ┌───────────────┐       ┌───────────────┐
-              │   Executor    │──────►│   Reporter    │
-              │               │       │               │
-              │ExecutionReport│       │  ReportData   │
-              └───────────────┘       └───────────────┘
-                                              │
-                        ┌─────────────────────┼─────────────────────┐
-                        ▼                     ▼                     ▼
-                  ┌──────────┐         ┌──────────┐         ┌──────────┐
-                  │ Terminal │         │   JSON   │         │   HTML   │
-                  │  (Rich)  │         │  (CI/CD) │         │(Jinja2)  │
-                  └──────────┘         └──────────┘         └──────────┘
+              ┌───────────────┐
+              │   Reporter    │
+              │               │
+              │  ReportData   │
+              └───────────────┘
+                      │
+        ┌─────────────┼─────────────┬─────────────┐
+        ▼             ▼             ▼             ▼
+  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+  │ Terminal  │  │   JSON   │  │   HTML   │  │ Markdown │
+  │  (Rich)   │  │  (CI/CD) │  │ (Jinja2) │  │  (.md)   │
+  └──────────┘  └──────────┘  └──────────┘  └──────────┘
 ```
 
 ## Modulos
@@ -87,77 +88,73 @@ identifica tecnologias, analiza calidad del codigo, genera tests con IA, y ejecu
 
 **Patron**: Template Method + Strategy
 
-### 3. Motor de Adaptacion (`adaptation/`)
+### 3. Motor de Diagnostico (`diagnosis/`)
 
-**Responsabilidad**: Seleccionar herramientas y generar tests con IA.
+**Responsabilidad**: Convertir datos de analisis en hallazgos accionables con fixes concretos.
 
 **Componentes:**
-- `AdaptationEngine` - Orquestador
-- Toolchains por lenguaje:
-  - `python_tools.py` - pytest, coverage.py, pytest-mock
-  - `javascript_tools.py` - jest, vitest, c8
-  - `java_tools.py` - JUnit 5, JaCoCo, Mockito
-  - `go_tools.py` - go test, go cover, testify
-  - `rust_tools.py` - cargo test, tarpaulin, mockall
-  - `csharp_tools.py` - dotnet test, coverlet, Moq
-- `AITestGenerator` - Genera unit tests via Claude API
-- `AIIntegrationTestGenerator` - Genera integration tests con mocks
-- `GeneratedTestValidator` - Validacion de seguridad y sintaxis
+- `DiagnosisEngine` - Orquestador que combina todas las fuentes de findings
+- `static_findings.py` - Genera findings de complejidad, dead code, coupling, missing tests
+- `security_scanner.py` - Escanea secretos hardcodeados con linea exacta
+- `ai_reviewer.py` - Revision de codigo con Claude API (opcional)
+- `context_builder.py` - Construye contexto rico para AI review
+- `prompts.py` - Prompts y tool schemas para Claude
+- `auto_fixer.py` - Aplica fixes automaticamente al codigo fuente
 
 **Consume**: `ProjectInfo` + `AnalysisReport`
-**Produce**: `TestStrategy`
-- Toolchain seleccionado
-- Tests unitarios generados
-- Tests de integracion con mocks
-- Comandos de ejecucion
+**Produce**: `DiagnosisReport`
+- Lista de `Finding` con severity, category, suggested_fix
+- Health score (0-100) basado en findings reales
+- Conteos por severidad (critical, warning, info)
 
-**Patron**: Abstract Factory + Adapter
+**Patron**: Pipeline + Strategy
 
-### 4. Ejecutor de Pruebas (`executor/`)
+#### Fuentes de Findings
 
-**Responsabilidad**: Ejecutar tests en fases con sandbox aislado.
+| Fuente | Siempre activa | Necesita AI | Findings tipicos |
+|--------|---------------|-------------|------------------|
+| Static Findings | Si | No | Complejidad alta, dead code, coupling, missing tests |
+| Security Scanner | Si | No | Secretos hardcodeados, API keys, passwords |
+| AI Reviewer | No | Si | Bugs, edge cases, error handling, seguridad avanzada |
 
-**Componentes:**
-- `ExecutionEngine` - Orquestador con secuenciamiento
-- `TestSandbox` - Directorio temporal para ejecucion segura
-- `SubprocessRunner` - Ejecucion async de comandos
-- 5 fases:
-  - `smoke.py` - Compilacion, dependencias, entry points
-  - `unit.py` - Tests unitarios existentes + generados
-  - `integration.py` - Tests de integracion (APIs, DB, servicios)
-  - `security.py` - Vulnerabilidades, secretos hardcodeados
-  - `quality.py` - Linting, tipos, complejidad
+#### Pipeline de Diagnostico
 
-**Consume**: `TestStrategy`
-**Produce**: `ExecutionReport`
-- Resultados por fase
-- Pass/fail rate
-- Coverage (si disponible)
-- Duracion
+1. **Static findings** - Convierte metricas de `AnalysisReport` en findings
+2. **Security scan** - Escanea archivos buscando patrones de secretos
+3. **AI review** (opcional) - Envia funciones priorizadas a Claude para revision
+4. **Deduplicacion** - Elimina findings duplicados (mismo archivo + linea cercana + categoria)
+5. **Relativizar paths** - Convierte paths absolutos a relativos
+6. **Ordenar y asignar IDs** - Ordena por severidad, asigna CD-001, CD-002, ...
+7. **Calcular health score** - Formula basada en conteos de findings
 
-**Patron**: Chain of Responsibility + Template Method
+### 4. Generador de Reportes (`reporter/`)
 
-### 5. Generador de Reportes (`reporter/`)
-
-**Responsabilidad**: Generar reportes en multiples formatos.
+**Responsabilidad**: Generar reportes en multiples formatos con findings accionables.
 
 **Componentes:**
-- `ReportEngine` - Orquestador con scoring de calidad
-- `TerminalReporter` - Salida Rich con tablas, paneles, arboles
-- `JSONReporter` - JSON serializado con Pydantic (para CI/CD)
-- `HTMLReporter` - HTML interactivo con Jinja2
+- `ReportEngine` - Orquestador con filtrado por severidad
+- `TerminalReporter` - Salida Rich con findings priorizados y health score
+- `JSONReporter` - JSON serializado con Pydantic (para CI/CD, datos completos sin filtrar)
+- `HTMLReporter` - HTML interactivo con fixes colapsables y boton "Copiar fix"
+- `MarkdownReporter` - Markdown para PRs de GitHub y documentacion
 
-**Consume**: Todos los modelos anteriores
+**Consume**: `ProjectInfo` + `AnalysisReport` + `DiagnosisReport`
 **Produce**:
-- `ReportData` con `QualitySummary` (score 0-100)
-- Archivos: `{proyecto}/reports/autotest-report-AT-YYYYMMDD-XXXXXX.html`
+- `ReportData` con `QualitySummary` y `DiagnosisReport`
+- Archivos: `{proyecto}/reports/autotest-report-AT-YYYYMMDD-XXXXXX.{html,json,md}`
 
 **Patron**: Strategy + Template Method
+
+#### Filtrado de Severidad
+
+- El JSON siempre contiene todos los findings (datos completos para CI/CD)
+- Terminal, HTML y Markdown filtran por `--severity` (default: critical,warning)
+- `--top N` limita findings por grupo de severidad en la salida visual
 
 ## Flujo de Datos Detallado
 
 ```
-CLI: autotest scan /path/to/project --open
+CLI: autotest diagnose /path/to/project --open
   │
   ├── Parse args → AutoTestConfig
   │
@@ -194,71 +191,47 @@ CLI: autotest scan /path/to/project --open
                      {
                        total_functions: 45,
                        avg_complexity: 4.2,
-                       untested_functions: ["func_a", "func_b"],
-                       coupling_issues: [...],
-                       dead_code_functions: [...]
+                       untested_functions: [FunctionMetrics...],
+                       coupling_issues: [CouplingInfo...],
+                       dead_code_functions: [FunctionMetrics...]
                      }
                            │
                            ▼
-[3] AdaptationEngine.adapt(ProjectInfo, AnalysisReport)
+[3] DiagnosisEngine.diagnose(ProjectInfo, AnalysisReport)
     │
-    ├── Selecciona toolchain por lenguaje principal
+    ├── static_findings(analysis) → complejidad, dead code, coupling, missing tests
+    ├── security_scanner(project_root) → secretos hardcodeados
+    ├── ai_reviewer(functions) → bugs, edge cases (si AI habilitado)
     │
-    ├── Si ai_enabled:
-    │   ├── AITestGenerator.generate(untested_functions)
-    │   │   └── Claude API → unit tests
-    │   │
-    │   └── AIIntegrationTestGenerator.generate(analysis)
-    │       └── Claude API → integration tests con mocks
+    ├── Deduplicar + relativizar paths + ordenar
     │
-    └── Valida tests generados (sintaxis, seguridad)
+    └── Calcular health_score y summary
                            │
                            ▼
-                     TestStrategy
-                     {
-                       toolchain: PythonToolchain,
-                       unit_tests: [GeneratedTest...],
-                       integration_tests: [GeneratedTest...],
-                       generation_stats: {attempted: 20, valid: 18}
-                     }
-                           │
-                           ▼
-[4] ExecutionEngine.execute(TestStrategy)
-    │
-    ├── _write_tests_to_project()
-    │   ├── tests/*.py (unit)
-    │   └── tests/integration/*.py (integration)
-    │
-    ├── Crea TestSandbox (temp dir con copia)
-    │
-    └── Para cada fase en orden:
-        ├── smoke → compila, verifica deps
-        ├── unit → pytest tests/
-        ├── integration → pytest tests/integration/
-        └── quality → ruff, mypy
-                           │
-                           ▼
-                    ExecutionReport
+                    DiagnosisReport
                     {
-                      phases: [PhaseResult...],
-                      overall_pass_rate: 0.85,
-                      overall_coverage: 72.5
+                      findings: [Finding...],
+                      health_score: 72.0,
+                      health_label: "moderate",
+                      critical_count: 2,
+                      warning_count: 3,
+                      info_count: 1
                     }
                            │
                            ▼
-[5] ReportEngine.report(project, analysis, strategy, execution)
-    │
-    ├── _calculate_quality() → QualitySummary (0-100)
+[4] ReportEngine.report_diagnosis(project, analysis, diagnosis)
     │
     ├── TerminalReporter → consola Rich
-    ├── JSONReporter → report.json
-    └── HTMLReporter → autotest-report-AT-YYYYMMDD-XXXXXX.html
+    ├── JSONReporter → report.json (datos completos)
+    ├── HTMLReporter → autotest-report-AT-YYYYMMDD-XXXXXX.html
+    └── MarkdownReporter → autotest-report-AT-YYYYMMDD-XXXXXX.md
                            │
                            ▼
                     {proyecto}/reports/
                     └── autotest-report-AT-20260203-A1B2C3.html
 
     Si --open: webbrowser.open(html_path)
+    Si --fix: apply_fixes(findings, project_root)
 ```
 
 ## Modelos (Contratos)
@@ -277,32 +250,37 @@ class ProjectInfo(BaseModel):
 # models/analysis.py
 class AnalysisReport(BaseModel):
     total_functions: int
-    avg_complexity: float
-    untested_functions: list[str]
-    coupling_issues: list[CouplingIssue]
-    dead_code_functions: list[str]
+    tested_function_count: int
+    estimated_coverage: float
+    high_complexity_functions: list[FunctionMetrics]
+    untested_functions: list[FunctionMetrics]
+    coupling_issues: list[CouplingInfo]
+    dead_code_functions: list[FunctionMetrics]
 
-# models/adaptation.py
-class TestStrategy(BaseModel):
-    toolchain: ToolChainConfig
-    unit_tests: list[GeneratedTest]
-    integration_tests: list[GeneratedTest]
-    ai_generation_used: bool
-    generation_stats: dict
+# models/diagnosis.py
+class Finding(BaseModel):
+    id: str
+    severity: Severity          # CRITICAL | WARNING | INFO
+    category: FindingCategory   # bug, security, complexity, etc.
+    title: str
+    description: str
+    file_path: str
+    line_start: int
+    suggested_fix: SuggestedFix | None
+    confidence: float           # 0.0 - 1.0
+    source: str                 # "static" | "ai" | "security"
 
-# models/execution.py
-class ExecutionReport(BaseModel):
-    phases: list[PhaseResult]
-    overall_pass_rate: float
-    overall_coverage: float | None
+class DiagnosisReport(BaseModel):
+    findings: list[Finding]
+    health_score: float         # 0 - 100
+    health_label: str           # healthy | moderate | at-risk | critical
 
 # models/report.py
 class ReportData(BaseModel):
-    report_id: str  # AT-YYYYMMDD-XXXXXX
+    report_id: str              # AT-YYYYMMDD-XXXXXX
     project: ProjectInfo
     analysis: AnalysisReport
-    strategy: TestStrategy
-    execution: ExecutionReport
+    diagnosis: DiagnosisReport
     quality: QualitySummary
 ```
 
@@ -312,17 +290,14 @@ class ReportData(BaseModel):
 1. Crear detector en `detector/languages/nuevo.py`
 2. Usar `@register("nuevo")`
 3. Crear parser en `analyzer/parsers/nuevo_parser.py`
-4. Crear toolchain en `adaptation/toolchains/nuevo_tools.py`
-5. Agregar prompts en `adaptation/ai/prompts.py`
-6. Agregar al enum `Language` en `models/project.py`
+4. Agregar al enum `Language` en `models/project.py`
 
-### Agregar una nueva fase:
-1. Crear ejecutor en `executor/phases/nueva_fase.py`
-2. Implementar `BasePhaseExecutor`
-3. Registrar en `executor/engine.py` PHASE_EXECUTORS
-4. Agregar a `TestPhase` enum en `models/project.py`
+### Agregar un nuevo generador de findings:
+1. Crear modulo en `diagnosis/mi_scanner.py`
+2. Implementar funcion que retorne `list[Finding]`
+3. Llamar desde `DiagnosisEngine.diagnose()`
 
 ### Agregar un nuevo formato de reporte:
-1. Crear reporter en `reporter/nuevo_reporter.py`
+1. Crear reporter en `reporter/mi_reporter.py`
 2. Implementar `BaseReporter.generate()`
 3. Registrar en `reporter/engine.py` reporters dict

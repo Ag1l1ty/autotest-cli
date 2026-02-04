@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from autotest.constants import TEST_PATTERNS
 from autotest.detector.base import BaseLanguageDetector
 from autotest.detector.registry import register
 from autotest.models.project import FrameworkInfo, Language, LanguageInfo
@@ -23,10 +24,8 @@ class PythonDetector(BaseLanguageDetector):
         if not files:
             return None
 
-        # Find test files
-        test_files = find_files_by_pattern(root, [
-            "test_*.py", "*_test.py", "tests/**/test_*.py", "test/**/test_*.py",
-        ])
+        # Find test files using centralized patterns
+        test_files = find_files_by_pattern(root, TEST_PATTERNS[Language.PYTHON])
 
         # Determine build tool
         build_tool = self._detect_build_tool(root)

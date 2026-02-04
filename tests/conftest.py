@@ -34,7 +34,6 @@ def default_config(tmp_path: Path) -> AutoTestConfig:
         output_dir=tmp_path / "reports",
         ai_enabled=False,
         ai_api_key="",
-        sandbox_enabled=False,
     )
 
 
@@ -47,5 +46,4 @@ def ai_config(tmp_path: Path) -> AutoTestConfig:
         ai_api_key="test-key-not-real",
         ai_model="claude-sonnet-4-20250514",
         ai_max_functions=5,
-        sandbox_enabled=False,
     )

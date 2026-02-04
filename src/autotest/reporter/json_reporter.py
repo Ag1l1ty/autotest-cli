@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta
 from pathlib import Path
 
 from autotest.config import AutoTestConfig
@@ -23,8 +21,8 @@ class JSONReporter(BaseReporter):
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / "autotest-report.json"
 
-        # Use Pydantic's JSON serialization
-        json_str = report_data.model_dump_json(indent=2)
+        # Use Pydantic's JSON serialization, excluding None fields
+        json_str = report_data.model_dump_json(indent=2, exclude_none=True)
         output_path.write_text(json_str, encoding="utf-8")
 
         return output_path

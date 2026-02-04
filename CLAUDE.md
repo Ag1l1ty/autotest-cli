@@ -1,7 +1,7 @@
-# CLAUDE.md - Contexto del Proyecto AutoTest CLI
+# CLAUDE.md - Contexto del Proyecto Code Doctor (AutoTest CLI)
 
 ## Version Actual
-**v0.1.0** - Release inicial
+**v0.2.0** - Pivot a Code Doctor (reporte estatico completado)
 
 ## Repositorio
 - **URL:** https://github.com/Ag1l1ty/autotest-cli
@@ -12,22 +12,17 @@
 
 ## Descripcion del Proyecto
 
-AutoTest CLI es una herramienta de linea de comandos que automatiza el analisis y testing de proyectos de software. Detecta tecnologias, analiza codigo, genera tests con IA (Claude API) y ejecuta pruebas en multiples fases.
+Code Doctor (antes AutoTest CLI) es una herramienta de linea de comandos que diagnostica proyectos de software. Detecta tecnologias, analiza codigo, encuentra problemas reales (complejidad, dead code, coupling, missing tests, secretos hardcodeados) y proporciona fixes concretos y accionables.
+
+### Pivot v0.1.0 -> v0.2.0
+- **Antes:** Generaba tests con IA que fallaban por errores de la IA misma
+- **Ahora:** Encuentra problemas reales en el codigo y da fixes copy-pasteables
+- **Pipeline anterior:** Detect -> Analyze -> Generate Tests -> Execute Tests -> Report (5 pasos)
+- **Pipeline nuevo:** Detect -> Analyze -> Diagnose -> Report (4 pasos)
+- **Eliminados:** `adaptation/`, `executor/`, `error_analyzer.py`, `models/adaptation.py`, `models/execution.py`
 
 ### Lenguajes Soportados
-- Python (pytest, coverage.py, pytest-mock)
-- JavaScript/TypeScript (jest, vitest, c8)
-- Java (JUnit 5, JaCoCo, Mockito)
-- Go (go test, go cover, testify)
-- Rust (cargo test, tarpaulin, mockall)
-- C# (dotnet test, coverlet, Moq)
-
-### Fases de Ejecucion
-1. **Smoke** - Compilacion, dependencias, puntos de entrada
-2. **Unit** - Tests unitarios existentes + generados por IA
-3. **Integration** - Tests de integracion con mocks automaticos
-4. **Security** - Vulnerabilidades, secretos hardcodeados
-5. **Quality** - Linting, tipos, complejidad
+- Python, JavaScript/TypeScript, Java, Go, Rust, C#
 
 ---
 
@@ -35,66 +30,62 @@ AutoTest CLI es una herramienta de linea de comandos que automatiza el analisis 
 
 ```
 TestingApp/
-├── pyproject.toml              # Configuracion del proyecto y dependencias
-├── README.md                   # Documentacion principal
-├── CLAUDE.md                   # Este archivo - contexto para Claude
-├── .gitignore
-├── .autotest.yaml.example      # Ejemplo de configuracion
+├── pyproject.toml
+├── README.md
+├── CLAUDE.md                   # Este archivo
 ├── src/
 │   └── autotest/
-│       ├── __init__.py         # Version: 0.1.0
-│       ├── __main__.py         # Entry point: python -m autotest
-│       ├── cli.py              # Comandos Typer: scan, detect, analyze, generate, execute
+│       ├── __init__.py         # Version: 0.2.0
+│       ├── __main__.py         # Entry point
+│       ├── cli.py              # Comandos: diagnose, scan, detect, analyze
 │       ├── config.py           # AutoTestConfig (Pydantic Settings)
-│       ├── constants.py        # Extensiones, mappings, defaults
-│       ├── exceptions.py       # Jerarquia de excepciones
-│       ├── models/             # Contratos Pydantic v2
-│       │   ├── project.py      # ProjectInfo, LanguageInfo, enums
-│       │   ├── analysis.py     # FunctionMetrics, AnalysisReport
-│       │   ├── adaptation.py   # ToolChainConfig, GeneratedTest, TestStrategy
-│       │   ├── execution.py    # TestResult, PhaseResult, ExecutionReport
+│       ├── constants.py        # Mappings, defaults, TEST_PATTERNS, thresholds
+│       ├── exceptions.py       # AutoTestError, DiagnosisError, AIReviewError
+│       ├── models/
+│       │   ├── project.py      # ProjectInfo, LanguageInfo, Language enum
+│       │   ├── analysis.py     # FunctionMetrics, AnalysisReport, ModuleMetrics
+│       │   ├── diagnosis.py    # Finding, DiagnosisReport, Severity, FindingCategory
 │       │   └── report.py       # ReportData, QualitySummary
 │       ├── detector/           # Modulo 1: Deteccion de tecnologias
+│       │   ├── scanner.py      # ProjectScanner
 │       │   ├── base.py         # BaseLanguageDetector (ABC)
-│       │   ├── scanner.py      # ProjectScanner (orquestador)
 │       │   ├── registry.py     # @register decorator
-│       │   └── languages/      # Detectores por lenguaje
+│       │   └── languages/      # 6 detectores (python, js, java, go, rust, csharp)
 │       ├── analyzer/           # Modulo 2: Analisis de codigo
-│       │   ├── engine.py       # AnalysisEngine (async)
-│       │   ├── complexity.py   # Complejidad ciclomatica
-│       │   ├── coupling.py     # Grafo de imports
-│       │   ├── coverage_gap.py # Funciones sin tests
-│       │   ├── dead_code.py    # Codigo muerto
-│       │   └── parsers/        # Parsers por lenguaje
-│       ├── adaptation/         # Modulo 3: Generacion de tests
-│       │   ├── engine.py       # AdaptationEngine
-│       │   ├── toolchains/     # Configuracion por lenguaje
-│       │   └── ai/
-│       │       ├── generator.py           # AITestGenerator (unit tests)
-│       │       ├── integration_generator.py # AIIntegrationTestGenerator
-│       │       ├── prompts.py             # Templates por lenguaje
-│       │       └── validator.py           # Validacion de tests
-│       ├── executor/           # Modulo 4: Ejecucion de pruebas
-│       │   ├── engine.py       # ExecutionEngine
-│       │   ├── sandbox.py      # TestSandbox (temp dir)
-│       │   ├── runners/        # SubprocessRunner async
-│       │   └── phases/         # Ejecutores por fase
-│       ├── reporter/           # Modulo 5: Reportes
-│       │   ├── engine.py       # ReportEngine
-│       │   ├── terminal.py     # Rich tables/panels
-│       │   ├── json_reporter.py
-│       │   ├── html_reporter.py
-│       │   └── templates/      # Jinja2 templates
-│       └── utils/              # Utilidades
+│       │   ├── engine.py       # AnalysisEngine (con _is_in_test_dir safety net)
+│       │   ├── complexity.py   # Complejidad ciclomatica (radon para Python)
+│       │   ├── coupling.py     # Grafo de imports, acoplamiento
+│       │   ├── coverage_gap.py # Deteccion de funciones sin tests (cross-line regex)
+│       │   ├── dead_code.py    # Codigo no referenciado
+│       │   └── parsers/        # 6 parsers (python, js, java, go, rust, csharp)
+│       ├── diagnosis/          # Modulo 3: Diagnostico
+│       │   ├── engine.py       # DiagnosisEngine (orquestador, health score, dedup)
+│       │   ├── static_findings.py  # complexity, dead_code, coupling, missing_tests
+│       │   ├── security_scanner.py # Secretos hardcodeados con linea exacta
+│       │   ├── context_builder.py  # Contexto rico para AI review
+│       │   ├── prompts.py      # Prompts y tool schemas para Claude
+│       │   ├── ai_reviewer.py  # AICodeReviewer con tool_use (opcional)
+│       │   └── auto_fixer.py   # Aplicar fixes automaticamente (--fix)
+│       ├── reporter/           # Modulo 4: Reportes
+│       │   ├── engine.py       # ReportEngine.report_diagnosis()
+│       │   ├── base.py         # BaseReporter (ABC)
+│       │   ├── terminal.py     # Rich: findings, health score, category summaries
+│       │   ├── json_reporter.py    # JSON completo (CI/CD)
+│       │   ├── html_reporter.py    # HTML interactivo (Jinja2)
+│       │   ├── markdown_reporter.py # Markdown para PRs
+│       │   └── templates/
+│       │       └── report.html.j2  # Template HTML con dark theme
+│       └── utils/
+│           └── file_utils.py   # safe_read, collect_files, find_files_by_pattern
 ├── tests/
-│   ├── conftest.py
-│   ├── fixtures/               # Proyectos de ejemplo
-│   ├── unit/                   # Tests unitarios
-│   └── integration/            # Tests E2E
-└── docs/
-    ├── architecture.md
-    ├── configuration.md
-    └── plugin-guide.md
+│   ├── conftest.py             # Fixtures: default_config, python_project, etc.
+│   ├── unit/                   # 83 tests unitarios
+│   └── fixtures/               # Proyectos de ejemplo para tests
+├── docs/
+│   ├── architecture.md         # Arquitectura detallada v0.2.0
+│   ├── plugin-guide.md         # Guia para extender
+│   └── feedback-report-quality.md  # 12 puntos de mejora (todos implementados)
+└── reports/                    # Reportes generados (gitignored)
 ```
 
 ---
@@ -102,127 +93,140 @@ TestingApp/
 ## Flujo de Datos
 
 ```
-CLI: autotest scan /path/to/project --open
+CLI: autotest diagnose /path/to/project --open
   │
   ▼
 [1] ProjectScanner.scan(path) ─────────────► ProjectInfo
   │                                          (lenguajes, frameworks, archivos)
   ▼
 [2] AnalysisEngine.analyze(ProjectInfo) ───► AnalysisReport
-  │                                          (complejidad, acoplamiento, gaps)
+  │   - Parsers extraen funciones por lenguaje
+  │   - Calcula complejidad ciclomatica
+  │   - Detecta funciones sin tests (cross-line regex)
+  │   - Detecta dead code y coupling
+  │   - Procesa funciones POR IDIOMA (no acumulativo)
+  │   - Excluye archivos en directorios test (_is_in_test_dir)
   ▼
-[3] AdaptationEngine.adapt(ProjectInfo, AnalysisReport)
-  │   ├── Selecciona toolchain por lenguaje
-  │   ├── AITestGenerator genera unit tests
-  │   └── AIIntegrationTestGenerator genera integration tests con mocks
+[3] DiagnosisEngine.diagnose(ProjectInfo, AnalysisReport)
+  │   ├── static_findings: complejidad, dead code, coupling, missing tests
+  │   ├── security_scanner: secretos hardcodeados con linea exacta
+  │   └── ai_reviewer: bugs, seguridad, edge cases (opcional, --no-ai para desactivar)
+  │   ├── Deduplicacion (mismo archivo + 3 lineas + misma categoria)
+  │   └── Health score con desglose transparente
   │                                        ▼
-  │                                   TestStrategy
-  │                                   (tests generados, comandos)
+  │                                   DiagnosisReport
+  │                                   (findings con fixes, health_score)
   ▼
-[4] ExecutionEngine.execute(TestStrategy)
-  │   ├── Escribe tests en proyecto (tests/, tests/integration/)
-  │   ├── Crea sandbox temporal
-  │   └── Ejecuta fases: smoke → unit → integration → quality
-  │                                        ▼
-  │                                   ExecutionReport
-  ▼
-[5] ReportEngine.report(...)
-    ├── Terminal (Rich)
-    ├── JSON (CI/CD)
-    └── HTML (interactivo con ID unico)
+[4] ReportEngine.report_diagnosis(...)
+    ├── Terminal (Rich) - findings priorizados con category summary
+    ├── JSON (CI/CD) - datos completos sin filtrar
+    ├── HTML (Jinja2) - interactivo con gradient urgencia, highlights, anchors
+    └── Markdown - para PRs de GitHub
          ▼
     {proyecto}/reports/autotest-report-AT-YYYYMMDD-XXXXXX.html
 ```
 
 ---
 
-## Ajustes y Fixes Realizados
-
-### 1. Integracion de Tests de Integracion
-**Problema:** Los tests de integracion no se generaban en el pipeline completo.
-**Causa:** `cli.py` tenia hardcodeado `phases="smoke,unit,quality"` sin "integration".
-**Solucion:** Actualizado a `phases="smoke,unit,integration,quality"` en cli.py:50.
-
-### 2. Generacion de Mocks Automaticos
-**Implementado:** `AIIntegrationTestGenerator` detecta automaticamente:
-- Conexiones a Supabase, Airtable, Firebase
-- Llamadas HTTP (requests, httpx, aiohttp)
-- Accesos a OneDrive, Google Drive, AWS S3
-- Base de datos (SQLAlchemy, psycopg2, pymongo)
-
-Los tests generados incluyen mocks con `unittest.mock.patch`.
-
-### 3. Persistencia de Tests Generados
-**Problema:** Tests se perdian al terminar el sandbox.
-**Solucion:** `ExecutionEngine._write_tests_to_project()` guarda tests en:
-- `{proyecto}/tests/` - unit tests
-- `{proyecto}/tests/integration/` - integration tests
-
-### 4. Reportes HTML con ID Unico
-**Implementado:** Cada reporte tiene codigo `AT-YYYYMMDD-XXXXXX`:
-- Aparece en nombre de archivo
-- Aparece en header y footer del HTML
-- Formato: `autotest-report-AT-20260203-A1B2C3.html`
-
-### 5. UX de Reportes Mejorada
-**Cambios:**
-- Reportes se guardan en `{proyecto}/reports/`
-- Output por defecto: `terminal,html`
-- Flag `--open` abre HTML en navegador
-- Panel final muestra rutas de reportes generados
-
-### 6. Soporte de API Key Dual
-**Config:** Acepta `ANTHROPIC_API_KEY` o `AUTOTEST_AI_API_KEY`.
-
-### 7. PYTHONPATH para Tests Generados
-**Fix:** Tests generados incluyen `sys.path.insert()` para importar modulos del proyecto.
-
----
-
 ## Comandos CLI
 
 ```bash
-# Pipeline completo con reporte HTML
+# Diagnostico completo (pipeline principal)
+autotest diagnose ./proyecto --open
+
+# Alias: scan llama internamente a diagnose
 autotest scan ./proyecto --open
 
 # Solo detectar tecnologias
 autotest detect ./proyecto
 
-# Analizar codigo
+# Analizar codigo (sin diagnostico)
 autotest analyze ./proyecto
 
-# Generar estrategia + tests IA
-autotest generate ./proyecto
-
-# Ejecutar pruebas
-autotest execute ./proyecto
-
-# Opciones
-autotest scan ./proyecto \
-  --output terminal,json,html \
-  --phases smoke,unit,integration,quality \
+# Opciones de diagnose
+autotest diagnose ./proyecto \
+  --output terminal,json,html,markdown \
+  --severity critical,warning \
+  --top 5 \
   --no-ai \
   --verbose \
-  --fail-fast \
-  --open
+  --open \
+  --fix \
+  --dry-run
 ```
 
 ---
 
-## Instalacion
+## Modelo de Datos: Finding
 
-```bash
-# Desde GitHub
-pip install git+https://github.com/Ag1l1ty/autotest-cli.git
+Cada hallazgo incluye:
+- **id:** CD-001, CD-002, ... (secuencial, asignado por DiagnosisEngine)
+- **severity:** CRITICAL | WARNING | INFO
+- **category:** bug, security, error_handling, dead_code, complexity, coupling, missing_tests, style
+- **title:** Descripcion corta (e.g. "Complejidad alta en analyze() — CC=26")
+- **description:** Detalle con lineas y qualified name
+- **file_path + line_start + line_end:** Ubicacion exacta
+- **suggested_fix:** description, code_before, code_after, explanation
+- **confidence:** 0.0 a 1.0 (AI findings se filtran por min_finding_confidence)
+- **source:** "static" | "ai" | "security"
 
-# Desarrollo local
-git clone https://github.com/Ag1l1ty/autotest-cli.git
-cd autotest-cli
-pip install -e ".[dev]"
+---
 
-# Configurar API key
-export ANTHROPIC_API_KEY="sk-ant-api03-..."
-```
+## Health Score
+
+Formula basada en findings reales (no test pass rates):
+- Start: 100
+- CRITICAL: -10 c/u (cap -40)
+- WARNING: -3 c/u (cap -30)
+- INFO: -1 c/u (cap -10)
+- Coverage gap: (1 - estimated_coverage/100) * 15
+
+Labels: healthy (>=80), moderate (>=60), at-risk (>=40), critical (<40)
+
+El HTML muestra desglose transparente: `100 −30 (24 warnings) −10 (54 notas) −8.7 (coverage gap) = 51`
+
+---
+
+## Reporte HTML: Funcionalidades
+
+El reporte HTML (`report.html.j2`) incluye:
+
+1. **Health Score badge** con desglose de la formula
+2. **Overview cards**: Critical, Warnings, Info, Functions (con nombres untested), Languages
+3. **Highlights verdes**: metricas positivas (coverage, tested count, 0 criticals, sin vulnerabilities)
+4. **Top Acciones Prioritarias**: ordenadas por CC desc, con badges ALTO IMPACTO / MEDIO, anchors a findings
+5. **Findings por severidad**: con category mini-summary ("20 complexity, 2 missing tests")
+6. **Urgency gradient CSS**: CC>=25 rojo (extreme), CC>=15 naranja (high), default amarillo
+7. **Fix box**: code_before (firma de funcion), code_after (fix con boton Copiar), explanation
+8. **Leyenda CC colapsable**: explica 1-10 Normal, 11-20 Alta, 21-50 Muy alta, >50 Critica
+9. **Filter banner**: muestra cuantos findings ocultos por --severity
+10. **Footer accionable**: `autotest diagnose --fix` y `--severity critical,warning,info`
+11. **Dark theme** con variables CSS, responsive
+
+---
+
+## Configuracion
+
+### Campos en AutoTestConfig
+- `project_path: Path` (requerido)
+- `output_formats: list[str] = ["terminal"]`
+- `output_dir: Path = Path("reports")`
+- `complexity_threshold: int = 10`
+- `ai_enabled: bool = True`
+- `ai_api_key: str = ""` (de env ANTHROPIC_API_KEY)
+- `ai_model: str = "claude-sonnet-4-20250514"`
+- `ai_max_functions: int = 10`
+- `min_finding_confidence: float = 0.6`
+- `severity_filter: list[str] = ["critical", "warning"]`
+- `top_findings: int = 5`
+- `verbose: bool = False`
+
+### Fuentes de configuracion (orden de prioridad)
+1. CLI args (mayor prioridad)
+2. ENV vars (AUTOTEST_*)
+3. `.autotest.yaml`
+4. `pyproject.toml [tool.codedoctor]`
+5. Defaults
 
 ---
 
@@ -232,181 +236,131 @@ export ANTHROPIC_API_KEY="sk-ant-api03-..."
 |---------|---------|-----|
 | typer | >=0.15 | CLI framework |
 | rich | >=13.9 | Terminal formatting |
-| pydantic | >=2.10 | Data models |
+| pydantic | >=2.10 | Data models (v2) |
 | pydantic-settings | >=2.6 | Config loading |
 | radon | >=6.0 | Complejidad Python |
-| anthropic | >=0.40 | Claude API |
+| anthropic | >=0.40 | Claude API (AI review) |
 | jinja2 | >=3.1 | HTML templates |
 | pyyaml | >=6.0 | Config YAML |
 
 ---
 
-## Modelo de IA
+## Bugs Corregidos en v0.2.0
 
-- **Modelo:** claude-sonnet-4-20250514
-- **Uso:** Generacion de unit tests e integration tests
-- **Tokens:** ~2000 por funcion (unit), ~3000 por modulo (integration)
-- **Validacion:** Sintaxis Python, imports peligrosos bloqueados
+### Bug: "Tested Functions: 0" (triple bug)
+**Sintoma:** El reporte mostraba 0 funciones testeadas aunque el proyecto tenia tests.
+
+**Causa raiz (3 problemas):**
+1. **Python detector** usaba patrones restrictivos (`tests/**/test_*.py`) que excluian `conftest.py` y fixtures. Fix: usar `TEST_PATTERNS[Language.PYTHON]` de constants.py que incluye `tests/**/*.py`.
+2. **coverage_gap.py** regex no cruzaba lineas — si la funcion y `assert` estaban en lineas diferentes, no matcheaba. Fix: agregar `re.DOTALL` con limite de 500 chars, mas fallback de "funcion llamada en tests" (`name\s*\(`).
+3. **engine.py** llamaba `find_untested_functions(all_functions, lang_info)` con TODAS las funciones acumuladas. La segunda iteracion (JavaScript) reseteaba `is_tested=False` para funciones Python ya marcadas. Fix: procesar funciones POR IDIOMA con `lang_functions`.
+
+**Safety net:** `_is_in_test_dir()` en engine.py excluye archivos en directorios test (tests/, test/, __tests__/, spec/, specs/) de source analysis.
+
+### Bug: avg_complexity=0.0 y total_loc=0
+**Causa:** AnalysisReport nunca recibia estos valores (defaulteaban a 0).
+**Fix:** Calcular agregacion antes del return en engine.py.
+
+### Bug: CC>20 contradecia umbral CC>10
+**Causa:** Description en static_findings.py decia "CC>{COMPLEXITY_HIGH}" (20) pero el umbral real es COMPLEXITY_MEDIUM (10).
+**Fix:** Usar COMPLEXITY_MEDIUM en descriptions y explanations.
 
 ---
 
-## Archivos de Configuracion
+## Thresholds de Complejidad
 
-### .autotest.yaml
-```yaml
-phases:
-  - smoke
-  - unit
-  - integration
-  - quality
-output_formats:
-  - terminal
-  - html
-ai_enabled: true
-ai_model: claude-sonnet-4-20250514
-complexity_threshold: 10
-timeout_seconds: 300
-```
+Definidos en `constants.py`:
+- `COMPLEXITY_LOW = 5`
+- `COMPLEXITY_MEDIUM = 10` — umbral de flagging (CC>10 genera finding)
+- `COMPLEXITY_HIGH = 20` — umbral de severity bump
+- `COMPLEXITY_VERY_HIGH = 50` — siempre CRITICAL
 
-### pyproject.toml
-```toml
-[tool.autotest]
-phases = ["smoke", "unit", "integration", "quality"]
-output_formats = ["terminal", "html"]
-```
+Thresholds de urgency gradient en HTML:
+- CC >= 25 → `urgency-extreme` (borde rojo)
+- CC >= 15 → `urgency-high` (borde naranja)
+- Default → borde amarillo (warnings) o rojo (criticals)
+
+---
+
+## Tests
+
+83 tests unitarios en `tests/unit/`:
+- `test_config.py` - AutoTestConfig defaults y overrides
+- `test_models.py` - Pydantic models, Finding, DiagnosisReport
+- `test_analyzer.py` - Parser, complexity, dead code
+- `test_detector.py` - Deteccion de lenguajes
+- `test_diagnosis_engine.py` - Health score, dedup, pipeline
+- `test_static_findings.py` - Complexity, dead code, coupling, missing tests
+- `test_security_scanner.py` - Secretos hardcodeados, severidad test vs produccion
+- `test_auto_fixer.py` - Aplicacion de fixes
+
+Correr tests: `python3 -m pytest tests/ -v`
+
+---
+
+## Estado Actual y Proximos Pasos
+
+### Completado (v0.2.0)
+- Pipeline estatico completo: Detect → Analyze → Diagnose → Report
+- 4 formatos de reporte: terminal, JSON, HTML, markdown
+- Security scanner (secretos hardcodeados)
+- Health score con desglose transparente
+- Reporte HTML con dark theme, urgency gradient, highlights, anchors
+- 83 tests unitarios pasando
+
+### Pendiente (futuro)
+- **AI review** (`--no-ai` actualmente activo por default en desarrollo) — requiere ANTHROPIC_API_KEY
+- **`--fix`** — auto_fixer.py existe pero necesita findings con `code_after` generados por AI
+- **Mas heuristicas de coverage_gap** — actualmente busca nombre de funcion en test content
+- **Soporte para monorepos** — multiples proyectos en un directorio
+- **CI/CD integration** — GitHub Actions, GitLab CI templates
+- **Cache de resultados** — evitar re-analisis de archivos no modificados
 
 ---
 
 ## Changelog
 
+### v0.2.0 (2026-02-03)
+- **PIVOT:** De "generador de tests" a "Code Doctor"
+- Nuevo pipeline: Detect -> Analyze -> Diagnose -> Report
+- Modulo `diagnosis/` con static findings, security scanner, AI reviewer, auto-fixer
+- Modelo `Finding` con severity, category, suggested_fix
+- Health score basado en findings reales con caps por severidad y desglose transparente
+- Reportes rediseñados: HTML interactivo con dark theme, urgency gradient, highlights, anchors
+- Formato Markdown para PRs de GitHub
+- Comando `diagnose` como pipeline principal (`scan` es alias)
+- `--fix` y `--dry-run` para aplicar fixes automaticamente
+- `--severity` filtra findings en terminal, HTML y markdown
+- `--top N` limita findings por grupo de severidad
+- Exit code 1 cuando hay findings criticos (CI/CD)
+- Deduplicacion de findings (mismo archivo + linea cercana + categoria)
+- Category mini-summary por grupo de severidad
+- Top Acciones con impact badges (ALTO IMPACTO / MEDIO) ordenadas por CC
+- Fix: Tested Functions 0 → detecta funciones testeadas correctamente
+- Fix: avg_complexity y total_loc calculados correctamente
+- Fix: CC>10 consistente con threshold real
+- Eliminados modulos `adaptation/`, `executor/`, `error_analyzer.py`
+- 83 tests unitarios
+
 ### v0.1.0 (2026-02-03)
-- Release inicial
-- Detector de 6 lenguajes
-- Analizador de complejidad, acoplamiento, coverage gaps
-- Generador de tests con Claude API (unit + integration)
-- Ejecutor de 5 fases con sandbox
-- Reportes: Terminal, JSON, HTML con ID unico
-- CLI: scan, detect, analyze, generate, execute
-- Publicado en GitHub: Ag1l1ty/autotest-cli
-
----
-
-## Proximos Pasos Sugeridos
-
-1. **Cache de analisis** - `.autotest_cache/` para re-ejecutar solo archivos cambiados
-2. **Modo incremental** - `--changed-only` con git diff
-3. **Watch mode** - `--watch` para re-ejecutar al cambiar archivos
-4. **JUnit XML** - Formato nativo para GitHub Actions/Jenkins
-5. **Docker sandbox** - Aislamiento completo para tests IA
-6. **Estimacion de costo** - Mostrar tokens/costo antes de llamar a Claude
-7. **Perfiles** - `.autotest.yaml` con perfiles (ci, thorough, security-only)
-
----
-
-## Diagnóstico Actual (2026-02-03)
-
-### Estado: PROTOTIPO TÉCNICO - NO LISTO PARA PRODUCCIÓN
-
-La app funciona técnicamente pero **no resuelve el problema real del desarrollador**.
-
-### Problemas Identificados
-
-| Problema | Impacto | Ejemplo |
-|----------|---------|---------|
-| **Tests IA con errores** | Alto | Genera `TranscriptionProcessor` cuando la clase es `TranscriptProcessor` |
-| **Errores "UNKNOWN"** | Alto | 12/18 tests muestran "revisar logs" - no es útil |
-| **No encuentra bugs reales** | Crítico | Tests fallan por errores de la IA, no por bugs del código |
-| **Linting opaco** | Medio | Solo dice "ruff failed", no qué reglas ni dónde |
-| **Mucho ruido** | Alto | 18 errores sin prioridad, difícil saber qué importa |
-
-### Lo que el desarrollador necesita vs lo que la app da
-
-```
-NECESITA: "Tu función X tiene un bug en línea 45"
-DA:       "18 tests fallaron"
-
-NECESITA: "Este import está mal, cámbialo por Y"
-DA:       "Error de importación, revisa logs"
-
-NECESITA: "Copia este código para arreglar"
-DA:       "Recomendación genérica"
-```
-
----
-
-## Recomendaciones de Mejora (PENDIENTES)
-
-### 1. Validar antes de generar
-Antes de que la IA genere un test que importa `TranscriptProcessor`:
-- Verificar que la clase/función existe en el código
-- Verificar el nombre exacto (case-sensitive)
-- Si no existe, NO generar el test
-
-### 2. Menos tests, mejor calidad
-- Limitar a 5-10 tests de alta calidad
-- Priorizar funciones críticas (alta complejidad, sin tests)
-- Validar que el test compila antes de incluirlo
-
-### 3. Salida accionable
-Cambiar de:
-```
-❌ quality:python:ruff - FAIL
-   Recomendación: Revisar logs
-```
-
-A:
-```
-❌ airtable_integration.py:80
-   E501: Línea muy larga (120 > 100 chars)
-
-💡 Arreglo sugerido:
-   response = create_card(
-       base_id=BASE_ID,
-       data=payload
-   )
-```
-
-### 4. Enfocarse en UNA cosa bien
-Opciones:
-- **Opción A**: Solo análisis de calidad (complejidad, linting, tipos) - hacerlo excelente
-- **Opción B**: Solo generación de tests - hacerlo excelente
-- **Opción C**: Solo detección de bugs - hacerlo excelente
-
-NO seguir haciendo 5 cosas a medias.
-
-### 5. Priorización clara
-En lugar de 18 errores planos, mostrar:
-```
-🔴 CRÍTICO (arreglar antes de deploy):
-   1. SQL Injection en user_input.py:45
-
-🟡 IMPORTANTE (arreglar pronto):
-   2. Función sin manejo de errores: process_file()
-
-🟢 MENOR (cuando tengas tiempo):
-   3. Línea muy larga en utils.py:80
-```
-
----
-
-## Próximos Pasos (Sesión Siguiente)
-
-1. **Decisión**: ¿Pivotar a enfoque específico o seguir como demo técnico?
-2. **Si pivotea**: Elegir UNA de las opciones (A, B, o C)
-3. **Implementar**: Validación de imports antes de generar tests
-4. **Mejorar**: Parser de errores de ruff/mypy para mostrar detalles reales
+- Release inicial (prototipo tecnico, descartado por pivot)
 
 ---
 
 ## Notas para Claude
 
-Cuando trabajes en este proyecto:
-
-1. **Arquitectura modular** - Cada modulo tiene su engine orquestador
-2. **Contratos Pydantic** - Todos los datos pasan por modelos validados
-3. **Async first** - Engines usan async/await
-4. **Registry pattern** - Detectores y fases usan decorador @register
-5. **Tests generados** - Se guardan en el proyecto, no solo en sandbox
-6. **API key** - Busca ANTHROPIC_API_KEY o AUTOTEST_AI_API_KEY
-7. **Reportes** - Siempre en `{proyecto}/reports/` con ID unico
-8. **IMPORTANTE**: La app está en estado de prototipo. No funciona bien para uso real. Ver sección "Diagnóstico Actual" arriba.
+1. **Pipeline:** Detect -> Analyze -> Diagnose -> Report (4 pasos)
+2. **No hay test generation/execution** — se eliminaron adaptation/ y executor/
+3. **Finding es el modelo central** - todo se mapea a findings con fixes
+4. **AI review usa tool_use** para output estructurado (no free-form text)
+5. **Static findings no necesitan AI** - siempre disponibles
+6. **Security scanner da line numbers** y distingue archivos test vs produccion
+7. **Health score = findings, no test results** (con caps por severidad)
+8. **JSON siempre tiene datos completos**, terminal/HTML/markdown se filtran por --severity
+9. **Exit code 1** cuando hay findings criticos (para CI/CD)
+10. **Engine procesa funciones POR IDIOMA** (lang_functions), no acumulativo — evita reset de is_tested
+11. **_is_in_test_dir()** es safety net contra archivos de test en source analysis
+12. **coverage_gap.py** usa 3 niveles de matching: patterns, cross-line regex (re.DOTALL), y function call detection
+13. **TEST_PATTERNS** en constants.py es la fuente canonica de patrones de test files — los detectores deben usarlos
+14. **Urgency gradient** en HTML: CC>=25 extreme (rojo), CC>=15 high (naranja)
+15. **83 tests unitarios** cubren diagnosis, security scanner, static findings, auto-fixer, models, config

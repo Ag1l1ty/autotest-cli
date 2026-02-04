@@ -1,11 +1,12 @@
-# Guia de Plugins para AutoTest CLI
+# Guia de Extensibilidad para Code Doctor
 
 ## Version
-v0.1.0
+v0.2.0
 
 ## Introduccion
 
-AutoTest CLI esta disenado con una arquitectura extensible que permite agregar soporte para nuevos lenguajes, fases de ejecucion y formatos de reporte.
+Code Doctor esta disenado con una arquitectura extensible que permite agregar soporte para
+nuevos lenguajes, generadores de findings, y formatos de reporte.
 
 Esta guia cubre como extender cada modulo del sistema.
 
@@ -42,10 +43,7 @@ from autotest.utils.file_utils import count_lines
 class MiLenguajeDetector(BaseLanguageDetector):
     """Detecta proyectos de Mi Lenguaje."""
 
-    # Extensiones de archivo a buscar
     EXTENSIONS = {".miext", ".mi"}
-
-    # Archivos de configuracion que indican el lenguaje
     CONFIG_FILES = {"mi.config", "mi.json"}
 
     @property
@@ -53,13 +51,10 @@ class MiLenguajeDetector(BaseLanguageDetector):
         return "mi_lenguaje"
 
     def detect(self, root: Path) -> LanguageInfo | None:
-        """Detecta si el proyecto usa Mi Lenguaje."""
         files: list[Path] = []
-
         for ext in self.EXTENSIONS:
             files.extend(root.rglob(f"*{ext}"))
 
-        # Excluir directorios comunes
         files = [
             f for f in files
             if not any(
@@ -72,58 +67,24 @@ class MiLenguajeDetector(BaseLanguageDetector):
             return None
 
         return LanguageInfo(
-            language=Language.OTHER,  # O agregar al enum
+            language=Language.OTHER,
             files=files,
             total_loc=sum(count_lines(f) for f in files),
-            version=self._detect_version(root),
         )
 
-    def _detect_version(self, root: Path) -> str | None:
-        """Detecta la version de Mi Lenguaje."""
-        config = root / "mi.config"
-        if config.exists():
-            # Parsear version del config
-            return "1.0"
-        return None
-
     def detect_frameworks(self, root: Path) -> list[FrameworkInfo]:
-        """Detecta frameworks de Mi Lenguaje."""
-        frameworks = []
-
-        # Detectar MiFramework
-        if (root / "miframework.json").exists():
-            frameworks.append(
-                FrameworkInfo(
-                    name="MiFramework",
-                    version=self._get_framework_version(root),
-                    category="web",
-                )
-            )
-
-        return frameworks
-
-    def _get_framework_version(self, root: Path) -> str | None:
-        # Leer version del framework
-        return None
+        return []
 
     def detect_test_tools(self, root: Path) -> list[str]:
-        """Detecta herramientas de testing instaladas."""
-        tools = []
-
-        if (root / "mi.test.config").exists():
-            tools.append("mi-test")
-
-        return tools
+        return []
 ```
 
 ### Paso 3: Agregar al enum (opcional)
 
-Si es un lenguaje nuevo, agregarlo a `models/project.py`:
-
 ```python
+# src/autotest/models/project.py
 class Language(str, Enum):
     PYTHON = "python"
-    JAVASCRIPT = "javascript"
     # ... otros
     MI_LENGUAJE = "mi_lenguaje"  # Nuevo
 ```
@@ -137,250 +98,92 @@ from autotest.detector.languages.mi_lenguaje import MiLenguajeDetector
 
 ---
 
-## 2. Crear un Toolchain
+## 2. Crear un Generador de Findings
 
-Los toolchains configuran las herramientas de testing por lenguaje.
-
-### Paso 1: Crear el archivo
-
-```bash
-# src/autotest/adaptation/toolchains/mi_lenguaje_tools.py
-```
-
-### Paso 2: Implementar el adapter
-
-```python
-"""Toolchain para Mi Lenguaje."""
-
-from autotest.adaptation.base import BaseAdapter
-from autotest.models.adaptation import ToolChainConfig
-from autotest.models.project import Language, TestPhase
-
-
-class MiLenguajeAdapter(BaseAdapter):
-    """Configura herramientas de testing para Mi Lenguaje."""
-
-    def get_toolchain(self) -> ToolChainConfig:
-        """Retorna la configuracion del toolchain."""
-        return ToolChainConfig(
-            language=Language.MI_LENGUAJE,
-            test_runner="mi-test",
-            test_command=["mi-test", "run"],
-            coverage_tool="mi-cov",
-            coverage_command=["mi-test", "run", "--coverage"],
-            mock_library="mi-mock",
-            lint_tools=["mi-lint"],
-        )
-
-    def get_test_command(self, phase: TestPhase) -> list[str]:
-        """Retorna el comando de test para una fase."""
-        base = ["mi-test", "run"]
-
-        if phase == TestPhase.UNIT:
-            return base + ["--unit"]
-        elif phase == TestPhase.INTEGRATION:
-            return base + ["--integration"]
-        elif phase == TestPhase.SMOKE:
-            return ["mi-test", "check"]
-
-        return base
-
-    def get_coverage_command(self) -> list[str]:
-        """Retorna el comando para generar coverage."""
-        return ["mi-test", "run", "--coverage", "--format=json"]
-
-    def get_lint_commands(self) -> list[list[str]]:
-        """Retorna comandos de linting."""
-        return [
-            ["mi-lint", "check", "."],
-            ["mi-format", "--check", "."],
-        ]
-
-    def get_type_check_command(self) -> list[str] | None:
-        """Retorna comando de type checking."""
-        return ["mi-types", "check", "."]
-```
-
-### Paso 3: Registrar en engine
-
-```python
-# src/autotest/adaptation/engine.py
-from autotest.adaptation.toolchains.mi_lenguaje_tools import MiLenguajeAdapter
-
-ADAPTERS = {
-    Language.PYTHON: PythonAdapter,
-    Language.JAVASCRIPT: JavaScriptAdapter,
-    # ...
-    Language.MI_LENGUAJE: MiLenguajeAdapter,  # Nuevo
-}
-```
-
----
-
-## 3. Crear Prompts de IA
-
-Para que la IA genere tests en tu lenguaje:
-
-### Paso 1: Agregar template
-
-```python
-# src/autotest/adaptation/ai/prompts.py
-
-MI_LENGUAJE_UNIT_TEST_TEMPLATE = """
-Generate a unit test for the following Mi Lenguaje function.
-Use the mi-test framework with mi-mock for mocking.
-
-Function to test:
-```mi
-{function_code}
-```
-
-File: {file_path}
-Function name: {function_name}
-
-Requirements:
-1. Use mi-test assertions (expect, assert)
-2. Mock external dependencies with mi-mock
-3. Test edge cases and error conditions
-4. Follow Mi Lenguaje testing conventions
-
-Generate ONLY the test code, no explanations.
-"""
-
-LANGUAGE_TEMPLATES = {
-    Language.PYTHON: PYTHON_UNIT_TEST_TEMPLATE,
-    Language.JAVASCRIPT: JS_UNIT_TEST_TEMPLATE,
-    # ...
-    Language.MI_LENGUAJE: MI_LENGUAJE_UNIT_TEST_TEMPLATE,  # Nuevo
-}
-```
-
----
-
-## 4. Crear una Fase de Ejecucion
+Los generadores de findings analizan el codigo y producen hallazgos accionables.
 
 ### Paso 1: Crear el archivo
 
 ```bash
-# src/autotest/executor/phases/mi_fase.py
+# src/autotest/diagnosis/mi_scanner.py
 ```
 
-### Paso 2: Implementar el ejecutor
+### Paso 2: Implementar el scanner
 
 ```python
-"""Ejecutor para Mi Fase personalizada."""
+"""Scanner personalizado para Mi Lenguaje."""
 
-from datetime import datetime, timedelta
+from __future__ import annotations
+
 from pathlib import Path
 
-from autotest.executor.base import BasePhaseExecutor
-from autotest.executor.runners.subprocess_runner import SubprocessRunner
-from autotest.models.adaptation import TestStrategy
-from autotest.models.execution import PhaseResult, TestResult
-from autotest.models.project import TestPhase
+from autotest.models.diagnosis import (
+    Finding,
+    FindingCategory,
+    Severity,
+    SuggestedFix,
+)
 
 
-class MiFaseExecutor(BasePhaseExecutor):
-    """Ejecuta Mi Fase personalizada."""
+def scan_for_issues(project_root: Path) -> list[Finding]:
+    """Escanea el proyecto buscando problemas especificos."""
+    findings: list[Finding] = []
 
-    @property
-    def phase_name(self) -> TestPhase:
-        # Agregar al enum si es nueva fase
-        return TestPhase.CUSTOM
+    for file_path in project_root.rglob("*.py"):
+        # Saltar directorios comunes
+        if ".git" in file_path.parts:
+            continue
 
-    async def execute(
-        self,
-        strategy: TestStrategy,
-        project_root: Path,
-    ) -> PhaseResult:
-        """Ejecuta la fase."""
-        start = datetime.now()
-        results: list[TestResult] = []
-        runner = SubprocessRunner(timeout=self.config.timeout_seconds)
-
-        # Ejecutar comandos de mi fase
-        commands = self._get_commands(strategy)
-
-        for name, cmd in commands:
-            test_start = datetime.now()
-
-            try:
-                stdout, stderr, returncode = await runner.run(
-                    cmd,
-                    cwd=project_root,
-                )
-
-                results.append(
-                    TestResult(
-                        name=name,
-                        passed=returncode == 0,
-                        duration_ms=(datetime.now() - test_start).total_seconds() * 1000,
-                        stdout=stdout,
-                        stderr=stderr,
-                        error_message=stderr if returncode != 0 else None,
+        content = file_path.read_text(errors="ignore")
+        for line_num, line in enumerate(content.splitlines(), start=1):
+            if _has_issue(line):
+                findings.append(
+                    Finding(
+                        severity=Severity.WARNING,
+                        category=FindingCategory.STYLE,
+                        title=f"Problema encontrado en linea {line_num}",
+                        description="Descripcion detallada del problema.",
+                        file_path=str(file_path.relative_to(project_root)),
+                        line_start=line_num,
+                        suggested_fix=SuggestedFix(
+                            description="Como arreglarlo",
+                            code_before=line.strip(),
+                            code_after=_fix_line(line).strip(),
+                        ),
+                        source="static",
                     )
                 )
 
-                if not results[-1].passed and self.config.fail_fast:
-                    break
+    return findings
 
-            except Exception as e:
-                results.append(
-                    TestResult(
-                        name=name,
-                        passed=False,
-                        duration_ms=0,
-                        error_message=str(e),
-                    )
-                )
 
-        return PhaseResult(
-            phase=self.phase_name,
-            test_results=results,
-            passed=sum(1 for r in results if r.passed),
-            failed=sum(1 for r in results if not r.passed),
-            skipped=0,
-            duration=datetime.now() - start,
-        )
+def _has_issue(line: str) -> bool:
+    # Logica de deteccion
+    return False
 
-    def _get_commands(self, strategy: TestStrategy) -> list[tuple[str, list[str]]]:
-        """Retorna los comandos a ejecutar."""
-        return [
-            ("Mi Check 1", ["mi-tool", "check", "--option1"]),
-            ("Mi Check 2", ["mi-tool", "validate"]),
-        ]
+
+def _fix_line(line: str) -> str:
+    # Logica de correccion
+    return line
 ```
 
-### Paso 3: Agregar al enum
+### Paso 3: Integrar en DiagnosisEngine
 
 ```python
-# src/autotest/models/project.py
-class TestPhase(str, Enum):
-    SMOKE = "smoke"
-    UNIT = "unit"
-    INTEGRATION = "integration"
-    SECURITY = "security"
-    QUALITY = "quality"
-    CUSTOM = "custom"  # Nueva fase
-```
+# src/autotest/diagnosis/engine.py - en el metodo diagnose()
 
-### Paso 4: Registrar en engine
+from autotest.diagnosis.mi_scanner import scan_for_issues
 
-```python
-# src/autotest/executor/engine.py
-from autotest.executor.phases.mi_fase import MiFaseExecutor
-
-PHASE_EXECUTORS = {
-    TestPhase.SMOKE: SmokePhaseExecutor,
-    TestPhase.UNIT: UnitPhaseExecutor,
-    # ...
-    TestPhase.CUSTOM: MiFaseExecutor,  # Nuevo
-}
+# Dentro de DiagnosisEngine.diagnose():
+custom_findings = scan_for_issues(project.root_path)
+all_findings.extend(custom_findings)
 ```
 
 ---
 
-## 5. Crear un Reporter
+## 3. Crear un Reporter
+
+Los reporters generan la salida en diferentes formatos.
 
 ### Paso 1: Crear el archivo
 
@@ -393,8 +196,9 @@ PHASE_EXECUTORS = {
 ```python
 """Reporter en formato XML (ejemplo)."""
 
+from __future__ import annotations
+
 from pathlib import Path
-import xml.etree.ElementTree as ET
 
 from autotest.config import AutoTestConfig
 from autotest.models.report import ReportData
@@ -402,7 +206,7 @@ from autotest.reporter.base import BaseReporter
 
 
 class XMLReporter(BaseReporter):
-    """Genera reportes en formato XML (JUnit compatible)."""
+    """Genera reportes en formato XML."""
 
     def __init__(self, config: AutoTestConfig) -> None:
         self.config = config
@@ -411,38 +215,25 @@ class XMLReporter(BaseReporter):
         """Genera el reporte XML."""
         output_dir = self.config.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-
         output_path = output_dir / f"autotest-report-{report_data.report_id}.xml"
 
-        # Crear estructura XML
-        root = ET.Element("testsuites")
-        root.set("name", report_data.project.name)
-        root.set("tests", str(self._count_tests(report_data)))
+        # Generar XML con findings del diagnosis
+        lines = ['<?xml version="1.0" encoding="utf-8"?>']
+        lines.append(f'<diagnosis project="{report_data.project.name}">')
 
-        for phase in report_data.execution.phases:
-            testsuite = ET.SubElement(root, "testsuite")
-            testsuite.set("name", phase.phase.value)
-            testsuite.set("tests", str(phase.total_tests))
-            testsuite.set("failures", str(phase.failed))
-            testsuite.set("time", str(phase.duration.total_seconds()))
+        if report_data.diagnosis:
+            for f in report_data.diagnosis.findings:
+                lines.append(f'  <finding id="{f.id}" severity="{f.severity.value}">')
+                lines.append(f'    <title>{f.title}</title>')
+                lines.append(f'    <file>{f.file_path}:{f.line_start}</file>')
+                if f.suggested_fix:
+                    lines.append(f'    <fix>{f.suggested_fix.description}</fix>')
+                lines.append(f'  </finding>')
 
-            for test in phase.test_results:
-                testcase = ET.SubElement(testsuite, "testcase")
-                testcase.set("name", test.name)
-                testcase.set("time", str(test.duration_ms / 1000))
+        lines.append('</diagnosis>')
 
-                if not test.passed:
-                    failure = ET.SubElement(testcase, "failure")
-                    failure.text = test.error_message or "Test failed"
-
-        # Escribir archivo
-        tree = ET.ElementTree(root)
-        tree.write(output_path, encoding="unicode", xml_declaration=True)
-
+        output_path.write_text("\n".join(lines))
         return output_path
-
-    def _count_tests(self, report_data: ReportData) -> int:
-        return sum(p.total_tests for p in report_data.execution.phases)
 ```
 
 ### Paso 3: Registrar en engine
@@ -451,63 +242,55 @@ class XMLReporter(BaseReporter):
 # src/autotest/reporter/engine.py
 from autotest.reporter.xml_reporter import XMLReporter
 
+# En el dict de reporters:
 reporters = {
     "terminal": lambda: TerminalReporter(self.config),
     "json": lambda: JSONReporter(self.config),
     "html": lambda: HTMLReporter(self.config),
+    "markdown": lambda: MarkdownReporter(self.config),
     "xml": lambda: XMLReporter(self.config),  # Nuevo
 }
 ```
 
 ---
 
-## 6. Testing de Plugins
+## 4. Testing de Plugins
 
 ### Crear tests unitarios
 
 ```python
-# tests/unit/test_mi_detector.py
+# tests/unit/test_mi_scanner.py
 import pytest
 from pathlib import Path
 
-from autotest.detector.languages.mi_lenguaje import MiLenguajeDetector
+from autotest.diagnosis.mi_scanner import scan_for_issues
 
 
-@pytest.fixture
-def detector():
-    return MiLenguajeDetector()
+def test_finds_issues(tmp_path):
+    (tmp_path / "main.py").write_text("# codigo con problema\n")
+    findings = scan_for_issues(tmp_path)
+    assert len(findings) >= 0  # Ajustar segun logica
 
 
-def test_detect_mi_lenguaje(detector, tmp_path):
-    # Crear archivo de prueba
-    (tmp_path / "main.miext").write_text("// Mi codigo")
-
-    result = detector.detect(tmp_path)
-
-    assert result is not None
-    assert len(result.files) == 1
-
-
-def test_detect_no_files(detector, tmp_path):
-    result = detector.detect(tmp_path)
-    assert result is None
+def test_clean_project(tmp_path):
+    (tmp_path / "main.py").write_text('print("hello")\n')
+    findings = scan_for_issues(tmp_path)
+    assert len(findings) == 0
 ```
 
 ### Ejecutar tests
 
 ```bash
-pytest tests/unit/test_mi_detector.py -v
+pytest tests/unit/test_mi_scanner.py -v
 ```
 
 ---
 
-## Checklist de Plugin
+## Checklist de Extension
 
-- [ ] Implementar clase base (ABC)
-- [ ] Registrar en registry/engine
+- [ ] Implementar la logica del plugin
+- [ ] Registrar en el modulo correspondiente (registry, engine, etc.)
 - [ ] Agregar a enums si es necesario
-- [ ] Actualizar __init__.py
-- [ ] Agregar prompts de IA (si aplica)
 - [ ] Escribir tests unitarios
+- [ ] Probar integracion con el pipeline completo (`autotest diagnose`)
 - [ ] Actualizar documentacion
-- [ ] Probar integracion completa

@@ -14,18 +14,21 @@ class TestAutoTestConfig:
     def test_defaults(self) -> None:
         config = AutoTestConfig()
         assert config.ai_enabled is True
-        assert config.sandbox_enabled is True
-        assert config.fail_fast is False
-        assert config.timeout_seconds == 300
+        assert config.verbose is False
+        assert config.complexity_threshold == 10
+        assert config.coupling_threshold == 8
 
     def test_env_prefix(self) -> None:
         config = AutoTestConfig()
         assert config.model_config["env_prefix"] == "AUTOTEST_"
 
-    def test_phases_default(self) -> None:
+    def test_diagnosis_defaults(self) -> None:
         config = AutoTestConfig()
-        assert "smoke" in config.phases
-        assert "unit" in config.phases
+        assert config.ai_max_functions == 10
+        assert config.min_finding_confidence == 0.6
+        assert "critical" in config.severity_filter
+        assert "warning" in config.severity_filter
+        assert config.top_findings == 5
 
 
 class TestLoadConfig:
@@ -38,13 +41,13 @@ class TestLoadConfig:
         config = load_config(
             target_path=tmp_path,
             ai_enabled=False,
-            timeout_seconds=60,
+            top_findings=10,
         )
         assert config.ai_enabled is False
-        assert config.timeout_seconds == 60
+        assert config.top_findings == 10
 
     def test_yaml_config(self, tmp_path: Path) -> None:
-        yaml_content = "phases:\n  - smoke\n  - unit\nai_enabled: false\n"
+        yaml_content = "ai_enabled: false\nseverity_filter:\n  - critical\n"
         yaml_file = tmp_path / ".autotest.yaml"
         yaml_file.write_text(yaml_content)
         config = load_config(target_path=tmp_path)

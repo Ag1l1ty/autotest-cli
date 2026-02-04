@@ -20,6 +20,10 @@ from autotest.analyzer.parsers.csharp_parser import CSharpParser
 from autotest.utils.file_utils import count_lines
 
 
+# Directories that contain test code, not production source
+_TEST_DIR_NAMES = {"tests", "test", "__tests__", "spec", "specs"}
+
+
 # Parser mapping
 PARSERS = {
     Language.PYTHON: PythonParser(),
@@ -49,9 +53,19 @@ class AnalysisEngine:
             if not parser:
                 continue
 
+            # Build set for O(1) lookup
+            test_files_set = set(lang_info.existing_test_files)
+
+            # Track functions for this language only
+            lang_functions: list[FunctionMetrics] = []
+
             for file_path in lang_info.files:
                 # Skip test files in analysis
-                if file_path in lang_info.existing_test_files:
+                if file_path in test_files_set:
+                    continue
+
+                # Safety net: skip files inside test directories
+                if self._is_in_test_dir(file_path, project.root_path):
                     continue
 
                 all_source_files.append(file_path)
@@ -62,7 +76,7 @@ class AnalysisEngine:
                 for func in functions:
                     func.cyclomatic_complexity = calculate_complexity(func)
 
-                all_functions.extend(functions)
+                lang_functions.extend(functions)
 
                 # Build module metrics
                 avg_complexity = (
@@ -85,8 +99,9 @@ class AnalysisEngine:
                 )
                 all_modules.append(module)
 
-            # Find untested functions per language
-            find_untested_functions(all_functions, lang_info)
+            # Find untested functions for this language only
+            find_untested_functions(lang_functions, lang_info)
+            all_functions.extend(lang_functions)
 
         # Calculate coupling
         coupling_data = calculate_coupling(all_modules)
@@ -105,6 +120,13 @@ class AnalysisEngine:
         total_public = sum(1 for f in all_functions if f.is_public)
         estimated_coverage = (tested_count / total_public * 100) if total_public > 0 else 0.0
 
+        # Aggregate metrics
+        total_loc = sum(m.loc for m in all_modules)
+        avg_cc = (
+            sum(f.cyclomatic_complexity for f in all_functions) / len(all_functions)
+            if all_functions else 0.0
+        )
+
         return AnalysisReport(
             modules=all_modules,
             untested_functions=untested,
@@ -114,4 +136,16 @@ class AnalysisEngine:
             total_functions=len(all_functions),
             tested_function_count=tested_count,
             estimated_coverage=round(estimated_coverage, 1),
+            avg_complexity=round(avg_cc, 1),
+            total_loc=total_loc,
         )
+
+    @staticmethod
+    def _is_in_test_dir(file_path: Path, root: Path) -> bool:
+        """Check if file is inside a test directory."""
+        try:
+            rel = file_path.relative_to(root)
+        except ValueError:
+            return False
+        # Check directory parts only (exclude filename)
+        return any(part in _TEST_DIR_NAMES for part in rel.parts[:-1])
